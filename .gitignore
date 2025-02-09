@@ -1,0 +1,10 @@
+runs/
+log/
+__pycache__/
+*zip
+*txt
+*pdf
+test.py
+work/
+old/
+reference papers/
