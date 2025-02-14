@@ -346,6 +346,9 @@ class GeneralSumGame():
         #     payoff_matrix[..., 3] = payoff_matrix[..., 2] # v3 = v4
         return payoff_matrix
     
+    def get_u(self, k:int, l:int) -> np.ndarray:
+        raise NotImplementedError
+    
 class TeamGame(GeneralSumGame):
     def generator_game(self, seed=None, low=0, high=10):
         rng = np.random.default_rng(seed)
@@ -382,26 +385,32 @@ class TwoTeamSymmetricGame(GeneralSumGame):
         shape.append(self.n_players)
         payoff_matrix = np.zeros(shape=shape, dtype=np.int8)
 
-        joint_action_indicator = np.random.randint(low=low, high=high+1, size=(self.n_players//2+1, self.n_players//2+1, 2), dtype=np.int8)
+        self.joint_action_indicator = np.random.randint(low=low, high=high+1, size=(self.n_players//2+1, self.n_players//2+1, 2), dtype=np.int8)
         
-        team_1_payoff_indicator = np.arange(low, high+1, dtype=np.int8)
-        team_2_payoff_indicator = np.arange(low, high+1, dtype=np.int8)
+        self.team_1_payoff_indicator = np.arange(low, high+1, dtype=np.int8)
+        self.team_2_payoff_indicator = np.arange(low, high+1, dtype=np.int8)
 
-        random.shuffle(team_1_payoff_indicator)
-        random.shuffle(team_2_payoff_indicator)
+        random.shuffle(self.team_1_payoff_indicator)
+        random.shuffle(self.team_2_payoff_indicator)
 
         all_actions = list(product([0, 1], repeat=self.n_players))
         for joint_action in all_actions:
             team_1_action_indicator = joint_action[:self.n_players//2].count(1)
             team_2_action_indicator = joint_action[self.n_players//2:].count(1)
-            joint_action_idx = joint_action_indicator[team_1_action_indicator, team_2_action_indicator]
-            team_1_payoffs = team_1_payoff_indicator[joint_action_idx[0]]
-            team_2_payoffs = team_2_payoff_indicator[joint_action_idx[1]]
+            joint_action_idx = self.joint_action_indicator[team_1_action_indicator, team_2_action_indicator]
+            team_1_payoffs = self.team_1_payoff_indicator[joint_action_idx[0]]
+            team_2_payoffs = self.team_2_payoff_indicator[joint_action_idx[1]]
             payoffs = np.concatenate((np.full(shape=self.n_players//2, fill_value=team_1_payoffs, dtype=np.int8),\
                                       np.full(shape=self.n_players//2, fill_value=team_2_payoffs, dtype=np.int8)))
             payoff_matrix[joint_action] = payoffs
             
         return payoff_matrix
+    
+    def get_u(self, k:int, l:int) -> np.ndarray:
+        joint_action_idx = self.joint_action_indicator[k, l]
+        team1_payoffs = self.team_1_payoff_indicator[joint_action_idx[0]]
+        team2_payoffs = self.team_2_payoff_indicator[joint_action_idx[1]]
+        return np.array([team1_payoffs, team2_payoffs])
     
 if __name__ == "__main__":
     # payoff_matrix = np.zeros(shape=(2, 2, 2, 3), dtype=np.int8)

@@ -4,6 +4,7 @@ from scipy.optimize import minimize, NonlinearConstraint, LinearConstraint, Boun
 from game_generator import GeneralSumGame, TeamGame
 #from judger import NashEquilibriumJudger
 from itertools import product
+from math import comb
 
 def compute_marginal_pmf(joint_dist):
     """
@@ -88,10 +89,27 @@ def calculate_expected_payoff(player_idx, game:GeneralSumGame, strategy):
     if player_idx is None:
         return player_expected_payoff
     return player_expected_payoff[player_idx]
+
+def calculate_expected_payoff_binomial(player_idx, game:GeneralSumGame, strategy):
+    '''
+    use formula from https://zesty-mine-c90.notion.site/Research-184082013166804d83afd1f3dd305bc1
+    '''
+    x, y = strategy[1], strategy[-1] # [x0, x1,...,y0, y1] get x1(idx is 1) and y1(idx is -1)
+    team_payoff = np.zeros(2)
+
+    n = game.n_players // 2 # team_1_n_player
+    m = game.n_players - n  # team_2_n_player
+
+    for k in range(n+1):
+        for l in range(m+1):
+            team_payoff += game.get_u(k, l) *\
+                        comb(n,k)*pow(x,k)*pow(1.0-x,n-k)*\
+                        comb(m,l)*pow(y,l)*pow(1.0-y,m-l)
+            
+    return team_payoff
     
 def feasibility_run(game:GeneralSumGame, n_players=4, tol=1e-8, init_val=None) -> np.ndarray:  # 設置容忍值:
     n_players = n_players
-    #two_player_approximation = game.two_virtual_player_approximation()
     # 1. 邊界
     bounds = Bounds(0.0, 1.0)
     player_strategy_probs = []
@@ -119,8 +137,8 @@ def feasibility_run(game:GeneralSumGame, n_players=4, tol=1e-8, init_val=None) -
         v2(l)+r_{2,l} = U*2, l=0,1,...,n-1
         """
         all_strategy = get_all_strategy(x)
-        all_payoffs = calculate_expected_payoff(None, game, all_strategy)
-        u1_star, u2_star = all_payoffs[0], all_payoffs[-1]
+        #all_payoffs = calculate_expected_payoff(None, game, all_strategy)
+        u1_star, u2_star = calculate_expected_payoff_binomial(None, game, all_strategy)#all_payoffs[0], all_payoffs[-1]
         # Team 1
         v1_0 = np.concatenate((np.array([1.0, 0.0], dtype=np.float64), all_strategy[2:]))
         v1_1 = np.concatenate((np.array([0.0, 1.0], dtype=np.float64), all_strategy[2:]))
@@ -225,8 +243,8 @@ def feasibility_run(game:GeneralSumGame, n_players=4, tol=1e-8, init_val=None) -
     # Record 2-player approximate game constraint infomation
     info = {}
     all_strategy = get_all_strategy(result.x)#strategys.copy()#
-    expected_payoff = calculate_expected_payoff(None, game, all_strategy)
-    u1_star, u2_star = expected_payoff[0], expected_payoff[-1]
+    #all_payoffs = calculate_expected_payoff(None, game, all_strategy)
+    u1_star, u2_star = calculate_expected_payoff_binomial(None, game, all_strategy)#all_payoffs[0], all_payoffs[-1]
     # Player 1
     v1_0 = np.concatenate((np.array([1.0, 0.0], dtype=np.float64), all_strategy[2:]))
     v1_1 = np.concatenate((np.array([0.0, 1.0], dtype=np.float64), all_strategy[2:]))
@@ -238,8 +256,8 @@ def feasibility_run(game:GeneralSumGame, n_players=4, tol=1e-8, init_val=None) -
     v2_0 = np.concatenate((all_strategy[:6], np.array([1.0, 0.0], dtype=np.float64)))
     v2_1 = np.concatenate((all_strategy[:6], np.array([0.0, 1.0], dtype=np.float64)))
     
-    v2_0 = calculate_expected_payoff(3, game, v2_0)
-    v2_1 = calculate_expected_payoff(3, game, v2_1)
+    v2_0 = calculate_expected_payoff(-1, game, v2_0)
+    v2_1 = calculate_expected_payoff(-1, game, v2_1)
 
     r = np.array([u1_star, u1_star, u2_star, u2_star]) - \
         np.array([v1_0, v1_1, v2_0, v2_1])

@@ -319,10 +319,10 @@ if __name__ == '__main__':
     # payoff_matrix[1,1,1,1] = np.array([ 0, 0, 0, 0])
 
     # special_game = TeamGame(4, payoff_matrix)
-    for t in range(51, 101):
+    for t in range(21, 31):
         print('Game ', t)
         game = TwoTeamSymmetricGame(4)
-        strategy = algo_run_v4(game, save_id='two_team_general_symmetric_game_4_players_' + str(t))
+        strategy = algo_run_v4(game, save_id='(bio)two_team_general_symmetric_game_4_players_' + str(t))
     # print('Result:\n', strategy)
     # expected_payoff = NashEquilibriumJudger.get_payoff(strategy, game.payoff_matrix)
     # print(expected_payoff)
