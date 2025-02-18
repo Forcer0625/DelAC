@@ -163,7 +163,7 @@ class NashEquilibriumJudger():
         
         # 對於每一位玩家，逐步檢查是否可以通過改變策略增加收益
         is_nash = True
-        info = {'New Payoff': -1}
+        info = {'New Payoff': -999}
         for player in range(n_player):
             if method == 'random' and is_nash:
                 for _ in range(n_steps):
@@ -177,7 +177,7 @@ class NashEquilibriumJudger():
                     new_payoff = NashEquilibriumJudger.calculate_single_player_payoff(player, new_strategy, payoff_matrix, matrix_type)
                     
                     # 檢查該玩家是否在新策略下得到了更高的收益
-                    if new_payoff > original_payoffs[player] * (1 + epsilon):
+                    if new_payoff > original_payoffs[player] * ((1 + epsilon) if original_payoffs[player] > 0.0 else (1 - epsilon)):
                         is_nash = False
                         if info['New Payoff'] < new_payoff:
                             target_player = 'Player ' + str(player + 1)

@@ -185,7 +185,7 @@ class GeneralSumGame():
             assert n_players == payoff_matrix.shape[-1]
             self.payoff_matrix = payoff_matrix
         else:
-            self.payoff_matrix = self.generator_game(seed, low=0, high=10)
+            self.payoff_matrix = self.generator_game(seed)
 
         self.payoff_dict = {}
         for i in range(n_players):
@@ -412,7 +412,7 @@ class TwoTeamSymmetricGame(GeneralSumGame):
         team2_payoffs = self.team_2_payoff_indicator[joint_action_idx[1]]
         return np.array([team1_payoffs, team2_payoffs])
     
-class TwoTeamZerSumSymmetricGame(TwoTeamSymmetricGame):
+class TwoTeamZeroSumSymmetricGame(TwoTeamSymmetricGame):
     def generator_game(self, seed=None, low=-10, high=10):
         # rng = np.random.default_rng(seed)
         np.random.seed(seed)
@@ -420,7 +420,7 @@ class TwoTeamZerSumSymmetricGame(TwoTeamSymmetricGame):
         shape.append(self.n_players)
         payoff_matrix = np.zeros(shape=shape, dtype=np.int8)
 
-        self.joint_action_indicator = np.random.randint(low=low, high=high+1, size=(self.n_players//2+1, self.n_players//2+1, 1), dtype=np.int8)
+        self.joint_action_indicator = np.random.randint(low=low, high=high+1, size=(self.n_players//2+1, self.n_players//2+1), dtype=np.int8)
         
         self.team_payoff_indicator = np.arange(low, high+1, dtype=np.int8)
 
