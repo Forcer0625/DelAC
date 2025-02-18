@@ -412,11 +412,39 @@ class TwoTeamSymmetricGame(GeneralSumGame):
         team2_payoffs = self.team_2_payoff_indicator[joint_action_idx[1]]
         return np.array([team1_payoffs, team2_payoffs])
     
+class TwoTeamZerSumSymmetricGame(TwoTeamSymmetricGame):
+    def generator_game(self, seed=None, low=-10, high=10):
+        # rng = np.random.default_rng(seed)
+        np.random.seed(seed)
+        shape = [2 for _ in range(self.n_players)]
+        shape.append(self.n_players)
+        payoff_matrix = np.zeros(shape=shape, dtype=np.int8)
+
+        self.joint_action_indicator = np.random.randint(low=low, high=high+1, size=(self.n_players//2+1, self.n_players//2+1, 1), dtype=np.int8)
+        
+        self.team_payoff_indicator = np.arange(low, high+1, dtype=np.int8)
+
+        random.shuffle(self.team_payoff_indicator)
+
+        all_actions = list(product([0, 1], repeat=self.n_players))
+        for joint_action in all_actions:
+            team_1_action_indicator = joint_action[:self.n_players//2].count(1)
+            team_2_action_indicator = joint_action[self.n_players//2:].count(1)
+            joint_action_idx = self.joint_action_indicator[team_1_action_indicator, team_2_action_indicator]
+            team_payoffs = self.team_payoff_indicator[joint_action_idx]
+            payoffs = np.concatenate((np.full(shape=self.n_players//2, fill_value= team_payoffs, dtype=np.int8),\
+                                      np.full(shape=self.n_players//2, fill_value=-team_payoffs, dtype=np.int8)))
+            payoff_matrix[joint_action] = payoffs
+            
+        return payoff_matrix
+    
+    def get_u(self, k:int, l:int) -> np.ndarray:
+        joint_action_idx = self.joint_action_indicator[k, l]
+        team1_payoffs = self.team_payoff_indicator[joint_action_idx]
+        team2_payoffs = -team1_payoffs
+        return np.array([team1_payoffs, team2_payoffs])
+    
 if __name__ == "__main__":
-    # payoff_matrix = np.zeros(shape=(2, 2, 2, 3), dtype=np.int8)
-    # payoff_matrix[:,1,:] = np.ones(shape=3, dtype=np.int8)
-    # two_player_game = compute_two_player_game_payoff(3, payoff_matrix, 1)
-    # result = check(3, payoff_matrix, two_player_game, 1)
     n_players = 4
     game = TwoTeamSymmetricGame(n_players)
 
