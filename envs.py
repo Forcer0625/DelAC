@@ -126,6 +126,74 @@ class TwoTeamZeroSumSymmetricEnv(NormalFormGame):
         team2_payoffs = -team1_payoffs
         return np.array([team1_payoffs, team2_payoffs])
 
+class TwoTeamZeroSumSymmetricStochasticEnv(StochasticGame):
+    def __init__(self, n_states:int, n_agents:int, n_actions:int, payoff_matrix:np.ndarray = None, state_transmition:np.ndarray = None, terminal_state:list = None, seed=None):
+        """
+            Payoff Matrix Format: (n_states, n_actions,...,n_actions, n_agents)
+            first axis represents the stochastic games has n_states
+            last axis represents the payoff for each agent under certain joint action
+
+            State Transmition Function T: (n_states, n_states)
+            probability only depends on state, and last axis is the probability, which means sum(T[s]) is 1.0 for any s in states
+        """
+        self.low = -10
+        self.high = 10
+        self.max_step = 100
+        np.random.seed(seed)
+        self.n_states = n_states
+        self.n_players = self.n_agents = n_agents
+        self.n_actions = n_actions
+        if payoff_matrix is None or state_transmition is None:
+            self.state_transmition = np.zeros((n_states, n_states))
+            shape = [n_actions for _ in range(self.n_agents)]
+            shape.append(n_agents)
+            shape.insert(0, n_states)
+            self.payoff_matrix = np.zeros(shape, dtype=np.int8)
+            self.joint_action_indicator = []
+            self.team_payoff_indicator = []
+            for s in range(n_states):
+                self.state = s
+                self.state_transmition[s] = np.random.dirichlet(np.ones(n_states), size=1) # generate random state transmition probability
+                self.payoff_matrix[s] = self.generate_random_game()
+            self.terminal_state = list(np.random.choice([i for i in range(n_states)], size=1))
+            self.state = 0
+        else:
+            assert payoff_matrix.shape[ 0] == n_states == state_transmition.shape[0]
+            assert payoff_matrix.shape[ 1] == n_actions
+            assert payoff_matrix.shape[-1] == n_agents
+            self.payoff_matrix = payoff_matrix
+            self.state_transmition = state_transmition
+            self.terminal_state = terminal_state
+
+    def generate_random_game(self) -> np.ndarray:
+        shape = [2 for _ in range(self.n_players)]
+        shape.append(self.n_players)
+        payoff_matrix = np.zeros(shape=shape, dtype=np.int8)
+
+        self.joint_action_indicator.append(np.random.randint(low=self.low, high=self.high+1, size=(self.n_players//2+1, self.n_players//2+1), dtype=np.int8))
+        
+        self.team_payoff_indicator.append(np.arange(self.low, self.high+1, dtype=np.int8))
+
+        random.shuffle(self.team_payoff_indicator[self.state])
+
+        all_actions = list(product([0, 1], repeat=self.n_players))
+        for joint_action in all_actions:
+            team_1_action_indicator = joint_action[:self.n_players//2].count(1)
+            team_2_action_indicator = joint_action[self.n_players//2:].count(1)
+            joint_action_idx = self.joint_action_indicator[self.state][team_1_action_indicator, team_2_action_indicator]
+            team_payoffs = self.team_payoff_indicator[self.state][joint_action_idx]
+            payoffs = np.concatenate((np.full(shape=self.n_players//2, fill_value= team_payoffs, dtype=np.int8),\
+                                      np.full(shape=self.n_players//2, fill_value=-team_payoffs, dtype=np.int8)))
+            payoff_matrix[joint_action] = payoffs
+            
+        return payoff_matrix
+    
+    def get_u(self, k:int, l:int) -> np.ndarray:
+        joint_action_idx = self.joint_action_indicator[self.state][k, l]
+        team1_payoffs = self.team_payoff_indicator[self.state][joint_action_idx]
+        team2_payoffs = -team1_payoffs
+        return np.array([team1_payoffs, team2_payoffs])
+
 if __name__ == '__main__':
     game = TwoTeamZeroSumSymmetricEnv(n_agents=4, n_actions=2)
     a, b = game.reset()
