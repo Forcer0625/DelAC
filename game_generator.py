@@ -349,6 +349,8 @@ class GeneralSumGame():
     def get_u(self, k:int, l:int) -> np.ndarray:
         raise NotImplementedError
     
+    def set_payoff_matrix(self, payoff_matrix, indicators):
+        raise NotImplementedError
 class TeamGame(GeneralSumGame):
     def generator_game(self, seed=None, low=0, high=10):
         rng = np.random.default_rng(seed)
@@ -444,6 +446,20 @@ class TwoTeamZeroSumSymmetricGame(TwoTeamSymmetricGame):
         team2_payoffs = -team1_payoffs
         return np.array([team1_payoffs, team2_payoffs])
     
+    def set_payoff_matrix(self, payoff_matrix:np.ndarray):
+        self.payoff_matrix = payoff_matrix
+        self.joint_action_indicator = np.zeros((self.n_players//2+1, self.n_players//2+1), dtype=np.int8)
+        min_payoff = np.min(payoff_matrix)
+        max_payoff = np.max(payoff_matrix)
+        self.team_payoff_indicator = np.arange(min_payoff, max_payoff+1, dtype=np.int8)
+
+        all_actions = list(product([0, 1], repeat=self.n_players))
+        for joint_action in all_actions:
+            payoff = payoff_matrix[joint_action][0]
+            team_1_action_indicator = joint_action[:self.n_players//2].count(1)
+            team_2_action_indicator = joint_action[self.n_players//2:].count(1)
+            self.joint_action_indicator[team_1_action_indicator, team_2_action_indicator] = payoff - min_payoff
+
 if __name__ == "__main__":
     n_players = 4
     game = TwoTeamSymmetricGame(n_players)
