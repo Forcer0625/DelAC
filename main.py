@@ -17,6 +17,7 @@ config = {
     'device':device,
     'nash-dynamic':True,
     'use-parameter-sharing':True,
+    'feasibility':True,
     'logdir':'dynamic-nashq-test01',
 }
 

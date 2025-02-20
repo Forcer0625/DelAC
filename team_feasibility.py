@@ -5,6 +5,8 @@ from game_generator import GeneralSumGame, TeamGame
 #from judger import NashEquilibriumJudger
 from itertools import product
 from math import comb
+import warnings
+warnings.filterwarnings("ignore", message="delta_grad == 0.0. Check if the approximated function is linear.")
 
 def compute_marginal_pmf(joint_dist):
     """

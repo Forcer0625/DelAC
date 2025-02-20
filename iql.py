@@ -10,6 +10,8 @@ from copy import deepcopy
 import pygambit as gbt
 from torch.utils.tensorboard import SummaryWriter
 from qmix import QMIX
+from team_feasibility import feasibility_run
+from game_generator import GeneralSumGame, TwoTeamSymmetricGame, TwoTeamZeroSumSymmetricGame
 import time
 
 class IQL(QMIX):
@@ -26,6 +28,7 @@ class IQL(QMIX):
         self.memory_size = config['memory_size']
         self.memory = ReplayBuffer(self.memory_size, observation[0].shape, self.n_agents)
 
+        self.use_feasibility = config['feasibility']
         self.parameter_sharing = config['use-parameter-sharing']
         self.lr = config['lr']
         self.gamma = config['gamma']
@@ -245,6 +248,7 @@ class DynamicSolver():
         self.dynamic = config['nash-dynamic']
         self.device = config['device']
         self.parameter_sharing = config['use-parameter-sharing']
+        self.use_feasibility = config['feasibility']
         self.total_gambit_time = 0.0  # 累積總時間的變數
         if not self.dynamic:
             """stationary: solve all state nash and store in a static table"""
@@ -287,13 +291,16 @@ class DynamicSolver():
         for state in range(self.env.n_states):
             
             start_time = time.time()
-            
-            # 1. Q-tables -> gamebit form
-            gamebit_form_game = DynamicSolver.from_arrays(dynamic_payoff_matrix[state])
-            # 2. solve nash from gambit
-            result = gbt.nash.ipa_solve(gamebit_form_game).equilibria
-            # 3. get probability and store
-            self.strategy[state] = DynamicSolver.extract_strategy(result, self.env.n_agents, self.n_actions)
+            if self.use_feasibility:
+                game = DynamicSolver.from_arrays(dynamic_payoff_matrix[state])
+                strategy, _, _ = feasibility_run(game, self.n_agents)
+                strategy = strategy.reshape((self.n_agents, self.n_actions))
+                self.strategy[state] = strategy
+            else:
+                game = DynamicSolver.from_arrays2gbt(dynamic_payoff_matrix[state])
+                result = gbt.nash.ipa_solve(game).equilibria
+                self.strategy[state] = DynamicSolver.extract_strategy(result, self.env.n_agents, self.n_actions)
+                
             # 4. calculate expected payoff for every state given nash
             self.static_values[state] = DynamicSolver.get_static_expected_payoff(dynamic_payoff_matrix[state], self.strategy[state])
         
@@ -320,7 +327,7 @@ class DynamicSolver():
     def values(self, state):
         return np.squeeze(self.static_values[state]) # (n_batches, n_agents)
 
-    def from_arrays(payoff_matrix:np.ndarray):
+    def from_arrays2gbt(payoff_matrix:np.ndarray):
         payoff_dict = {}
         n_agents = payoff_matrix.shape[-1]
         
@@ -328,6 +335,12 @@ class DynamicSolver():
             payoff_dict['Player '+str(i+1)] = payoff_matrix[..., i]
 
         return gbt.Game.from_dict(payoff_dict)
+    
+    def from_arrays(payoff_matrix:np.ndarray):
+        n_agents = payoff_matrix.shape[-1]
+        game = TwoTeamZeroSumSymmetricGame(n_agents)
+        game.set_payoff_matrix(payoff_matrix)
+        return game
 
     def extract_strategy(result, n_agents, n_actions):
         nash_strategy = np.zeros((n_agents, n_actions))
