@@ -295,12 +295,15 @@ class DynamicSolver():
                 game = DynamicSolver.from_arrays(dynamic_payoff_matrix[state])
                 strategy, _, _ = feasibility_run(game, self.n_agents)
                 strategy = strategy.reshape((self.n_agents, self.n_actions))
+                for i in range(self.n_agents):
+                    if np.min(strategy[i]) < 0.0:
+                        strategy[i] = np.exp(strategy[i])/sum(np.exp(strategy[i]))
                 self.strategy[state] = strategy
             else:
                 game = DynamicSolver.from_arrays2gbt(dynamic_payoff_matrix[state])
                 result = gbt.nash.ipa_solve(game).equilibria
                 self.strategy[state] = DynamicSolver.extract_strategy(result, self.env.n_agents, self.n_actions)
-                
+
             # 4. calculate expected payoff for every state given nash
             self.static_values[state] = DynamicSolver.get_static_expected_payoff(dynamic_payoff_matrix[state], self.strategy[state])
         
