@@ -3,7 +3,7 @@ from iql import IQL, NashQ
 import torch
 from envs import *
 
-total_steps = int(7e5)
+total_steps = int(1e4)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 config = {
     'eps_start':0.99,
@@ -16,12 +16,12 @@ config = {
     'memory_size':40000,
     'device':device,
     'nash-dynamic':True,
-    'logdir':'dynamic-nashq-test236',
+    'logdir':'dynamic-nashq-test01',
 }
 
 if __name__ == '__main__':
     print(device)
-    env = StochasticGame(n_states=5, n_agents=4, n_actions=2)
+    env = TwoTeamZeroSumSymmetricStochasticEnv(n_states=1, n_agents=4, n_actions=2)
     nashq = NashQ(env, config)
     nashq.learn(total_steps)
 
