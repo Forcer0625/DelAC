@@ -11,14 +11,13 @@ from collections import deque
 
 class BaseRunner():
     def __init__(self, env:NormalFormGame, policy, replay_buffer:ReplayBuffer, algo='IQL'):
-        assert env.n_agents == len(policy)
         self.env = env
         if type(self.env.n_actions) == int:
             self.n_actions = self.env.n_actions
         else:
             self.n_actions = self.env.n_actions[0]
         self.policy = policy
-        self.n_agents = len(policy)
+        self.n_agents = self.env.n_agents
         self.replay_buffer = replay_buffer
         self.device = policy[0].device  #取得第一個代理策略的運算設備，假設所有代理的策略都在相同的設備上運行
         self.algo = algo
@@ -51,7 +50,10 @@ class EGreedyRunner(BaseRunner):
                     action = random.sample(range(self.n_actions), 1)[0]
                 else:
                     feature = torch.as_tensor(obs[i], dtype=torch.float, device=self.device)
-                    action_values = self.policy[i](feature)
+                    if self.n_agents > len(self.policy) or len(self.policy) == 2:
+                        action_values = self.policy[0 if i < self.n_agents//2 else 1](feature)
+                    else:
+                        action_values = self.policy[i](feature)
                     action = torch.argmax(action_values)
                     action = action.item()
                 actions.append(action)

@@ -16,6 +16,7 @@ config = {
     'memory_size':40000,
     'device':device,
     'nash-dynamic':True,
+    'use-parameter-sharing':True,
     'logdir':'dynamic-nashq-test01',
 }
 

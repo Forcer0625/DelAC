@@ -26,6 +26,7 @@ class IQL(QMIX):
         self.memory_size = config['memory_size']
         self.memory = ReplayBuffer(self.memory_size, observation[0].shape, self.n_agents)
 
+        self.parameter_sharing = config['use-parameter-sharing']
         self.lr = config['lr']
         self.gamma = config['gamma']
         self.tau = config['tau']
@@ -40,11 +41,14 @@ class IQL(QMIX):
         self.infos = []
         self.config = config
 
+    def get_team(self, player_id):
+        return 0 if player_id < self.n_agents//2 else 1
+
     def get_policy(self, observation):
         self.policy = []
         self.target_policy = []
         self.optimizer = []
-        for i in range(self.n_agents):
+        for i in range(2 if self.parameter_sharing else self.n_agents):
             self.policy.append(MLPAgent(observation[0].reshape(-1).shape[0], self.n_actions, device=self.device))
             self.target_policy.append(deepcopy(self.policy[i]))
             self.optimizer.append(torch.optim.Adam(self.policy[i].parameters(), lr=self.lr)) 
@@ -67,15 +71,15 @@ class IQL(QMIX):
 
         total_loss = 0.0
         for i in range(self.n_agents):
-            action_values = self.policy[i](observations[:,i]).reshape(-1, self.n_actions)
+            action_values = self.policy[self.get_team(i) if self.parameter_sharing else i](observations[:,i]).reshape(-1, self.n_actions)
             action_values = action_values.gather(1, actions[:,i].unsqueeze(1))
             action_values = action_values.reshape(-1)
 
             # double-q
             with torch.no_grad():
-                estimate_action_values = self.policy[i](observations_[:,i]).reshape(-1, self.n_actions)
+                estimate_action_values = self.policy[self.get_team(i) if self.parameter_sharing else i](observations_[:,i]).reshape(-1, self.n_actions)
                 next_action = torch.max(estimate_action_values, dim=1).indices
-                next_action_values = self.target_policy[i](observations_[:,i]).reshape(-1, self.n_actions)
+                next_action_values = self.target_policy[self.get_team(i) if self.parameter_sharing else i](observations_[:,i]).reshape(-1, self.n_actions)
                 next_action_values = next_action_values.gather(1, next_action.unsqueeze(1))
                 next_action_values = next_action_values.reshape(-1)
 
@@ -84,16 +88,16 @@ class IQL(QMIX):
             loss = self.loss(action_values, target.detach())
 
             # optimize
-            self.optimizer[i].zero_grad()
+            self.optimizer[self.get_team(i) if self.parameter_sharing else i].zero_grad()
             loss.backward()
-            nn.utils.clip_grad_norm_(self.policy[i].parameters(), 10)
-            self.optimizer[i].step()
+            nn.utils.clip_grad_norm_(self.policy[self.get_team(i) if self.parameter_sharing else i].parameters(), 10)
+            self.optimizer[self.get_team(i) if self.parameter_sharing else i].step()
             total_loss+=loss.item()
 
         return total_loss/self.n_agents
 
     def sync(self, ):
-        for i in range(self.n_agents):
+        for i in range(2 if self.parameter_sharing else self.n_agents):
             target_net_weights = self.target_policy[i].state_dict()
             q_net_weights = self.policy[i].state_dict()
             for key in q_net_weights:
@@ -101,7 +105,7 @@ class IQL(QMIX):
             self.target_policy[i].load_state_dict(target_net_weights)
 
     def hard_sync(self):
-        for i in range(self.n_agents):
+        for i in range(2 if self.parameter_sharing else self.n_agents):
             self.target_policy[i].load_state_dict(self.policy[i].state_dict())
 
     def save_model(self, path=None):
@@ -109,7 +113,7 @@ class IQL(QMIX):
             path = './model/'+self.config['logdir']
         models = {}
         for i in range(self.n_agents):
-            models['agent'+str(i)] = self.policy[i].state_dict()
+            models['agent'+str(i)] = self.policy[self.get_team(i) if self.parameter_sharing else i].state_dict()
         torch.save(models, path)
         
     def load_model(self, path=None):
@@ -130,7 +134,7 @@ class NashQ(IQL):
         self.policy = []
         self.target_policy = []
         self.optimizer = []
-        for i in range(self.n_agents):
+        for i in range(2 if self.parameter_sharing else self.n_agents):
             self.policy.append(MLPAgent(observation[0].reshape(-1).shape[0], self.n_actions, device=self.device))
             if self.dynamic:
                 self.target_policy.append(deepcopy(self.policy[i]))
@@ -163,7 +167,7 @@ class NashQ(IQL):
         if self.dynamic:
             self.solver.saving = False
         for i in range(self.n_agents):
-            action_values = self.policy[i](observations[:,i]).reshape(-1, self.n_actions)
+            action_values = self.policy[self.get_team(i) if self.parameter_sharing else i](observations[:,i]).reshape(-1, self.n_actions)
             action_values = action_values.gather(1, actions[:,i].unsqueeze(1))
             action_values = action_values.reshape(-1)
 
@@ -174,7 +178,7 @@ class NashQ(IQL):
             # optimize
             self.optimizer[i].zero_grad()
             loss.backward()
-            nn.utils.clip_grad_norm_(self.policy[i].parameters(), 10)
+            nn.utils.clip_grad_norm_(self.policy[self.get_team(i) if self.parameter_sharing else i].parameters(), 10)
             self.optimizer[i].step()
             total_loss+=loss.item()
 
@@ -211,7 +215,7 @@ class NashQ(IQL):
         if not self.dynamic:
             return
         
-        for i in range(self.n_agents):
+        for i in range(2 if self.parameter_sharing else self.n_agents):
             target_net_weights = self.target_policy[i].state_dict()
             q_net_weights = self.policy[i].state_dict()
             for key in q_net_weights:
@@ -240,6 +244,7 @@ class DynamicSolver():
             self.n_actions = self.env.n_actions[0]
         self.dynamic = config['nash-dynamic']
         self.device = config['device']
+        self.parameter_sharing = config['use-parameter-sharing']
         self.total_gambit_time = 0.0  # 累積總時間的變數
         if not self.dynamic:
             """stationary: solve all state nash and store in a static table"""
@@ -263,6 +268,9 @@ class DynamicSolver():
             """dynamic: slove nash based on state and Q-network"""
             self.saving = False
             
+
+    def get_team(self, player_id):
+        return 0 if player_id < self.n_agents//2 else 1
 
     def set_policy(self, policy, target_policy):
         self.policy = policy
@@ -301,7 +309,7 @@ class DynamicSolver():
             for state in range(self.env.n_states):
                 feature = torch.as_tensor([state], dtype=torch.float32, device=self.device)
                 for i in range(self.n_agents):
-                    qvalues = self.target_policy[i](feature).cpu().numpy()
+                    qvalues = self.target_policy[self.get_team(i) if self.parameter_sharing else i](feature).cpu().numpy()
                     for a in range(self.n_actions):
                         joint_actions = [slice(None) for _ in range(self.n_agents)]
                         joint_actions[i] = a
