@@ -3,7 +3,7 @@ from iql import IQL, NashQ
 import torch
 from envs import *
 
-total_steps = int(1e4)
+total_steps = int(1e3)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 config = {
     'eps_start':0.99,

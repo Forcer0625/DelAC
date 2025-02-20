@@ -176,10 +176,10 @@ class NashQ(IQL):
             loss = self.loss(action_values, target.detach())
 
             # optimize
-            self.optimizer[i].zero_grad()
+            self.optimizer[self.get_team(i) if self.parameter_sharing else i].zero_grad()
             loss.backward()
             nn.utils.clip_grad_norm_(self.policy[self.get_team(i) if self.parameter_sharing else i].parameters(), 10)
-            self.optimizer[i].step()
+            self.optimizer[self.get_team(i) if self.parameter_sharing else i].step()
             total_loss+=loss.item()
 
         return total_loss/self.n_agents
