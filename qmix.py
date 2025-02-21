@@ -69,7 +69,8 @@ class QMIX():
             self.sync()
             
             info = {
-                'Ep.Reward':total_reward[0],
+                'Team1-Ep.Reward':total_reward[ 0],
+                'Team2-Ep.Reward':total_reward[-1],
                 'Epsilon':self.runner.epsilon,
                 'Loss':loss,
             }
