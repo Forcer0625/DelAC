@@ -234,7 +234,7 @@ class NashQ(IQL):
         torch.save(self.infos, './log/'+self.config['logdir'])
         print(f"訓練結束，Gambit 求解總時間：{self.solver.total_gambit_time:.6f} 秒")
 
-    def sync(self):
+    def soft_sync(self):
         if not self.dynamic:
             return
         
