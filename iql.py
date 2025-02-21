@@ -99,7 +99,17 @@ class IQL(QMIX):
 
         return total_loss/self.n_agents
 
-    def sync(self, ):
+    def sync(self):
+        if type(self.config['tau']) == int:
+            if self.tau == 0:
+                self.hard_sync()
+                self.tau = self.config['tau']
+            else:
+                self.tau -= 1
+        else:
+            self.soft_sync()
+
+    def soft_sync(self, ):
         for i in range(2 if self.parameter_sharing else self.n_agents):
             target_net_weights = self.target_policy[i].state_dict()
             q_net_weights = self.policy[i].state_dict()
@@ -167,8 +177,7 @@ class NashQ(IQL):
         observations_= torch.as_tensor(observations_, dtype=torch.float32, device=self.device)#.view(-1, *observations_[0][0].shape)
 
         total_loss = 0.0
-        if self.dynamic:
-            self.solver.saving = False
+        
         for i in range(self.n_agents):
             action_values = self.policy[self.get_team(i) if self.parameter_sharing else i](observations[:,i]).reshape(-1, self.n_actions)
             action_values = action_values.gather(1, actions[:,i].unsqueeze(1))
@@ -187,8 +196,19 @@ class NashQ(IQL):
 
         return total_loss/self.n_agents
 
-    # def static_value(self, observations:np.ndarray):
-    #     return self.values[np.array(observations, dtype=np.int64)]
+    def sync(self):
+        if type(self.config['tau']) == int:
+            if self.tau == 0:
+                self.hard_sync()
+                self.tau = self.config['tau']
+                if self.dynamic:
+                    self.solver.saving = False
+            else:
+                self.tau -= 1
+        else:
+            self.soft_sync()
+            if self.dynamic:
+                self.solver.saving = False
 
     def learn(self, total_steps):
         step = 0
@@ -226,7 +246,11 @@ class NashQ(IQL):
             self.target_policy[i].load_state_dict(target_net_weights)
 
     def hard_sync(self):
-        return
+        if not self.dynamic:
+            return
+
+        for i in range(2 if self.parameter_sharing else self.n_agents):
+            self.target_policy[i].load_state_dict(self.policy[i].state_dict())
 
     def load_model(self, path=None):
         if path is None:
