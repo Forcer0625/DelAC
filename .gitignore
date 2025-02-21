@@ -5,6 +5,7 @@ __pycache__/
 *txt
 *pdf
 test.py
+main.py
 work/
 old/
 reference papers/
