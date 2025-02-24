@@ -448,10 +448,10 @@ class TwoTeamZeroSumSymmetricGame(TwoTeamSymmetricGame):
     
     def set_payoff_matrix(self, payoff_matrix:np.ndarray):
         self.payoff_matrix = payoff_matrix
-        self.joint_action_indicator = np.zeros((self.n_players//2+1, self.n_players//2+1), dtype=np.int8)
+        self.joint_action_indicator = np.zeros((self.n_players//2+1, self.n_players//2+1), dtype=np.int32)
         min_payoff = np.min(payoff_matrix)
         max_payoff = np.max(payoff_matrix)
-        self.team_payoff_indicator = np.arange(min_payoff, max_payoff+1, dtype=np.int8)
+        self.team_payoff_indicator = np.arange(min_payoff, max_payoff+1, dtype=np.int32)
 
         all_actions = list(product([0, 1], repeat=self.n_players))
         for joint_action in all_actions:
