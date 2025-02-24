@@ -84,6 +84,33 @@ class QMixer(nn.Module):
         q_tot = q_tot.view(-1, 1)
 
         return q_tot
+    
+class NWQMixer(QMixer):
+    def __init__(self, state_dim, n_agents, team, hidden_dim=64, device=torch.device('cpu')):
+        super().__init__(state_dim, n_agents, hidden_dim, device)
+        self.team = team
+
+    def forward(self, q_values, states):
+        w_1 = torch.abs(self.hyper_w1(states))
+        w_1 = w_1.view(-1, self.n_agents, self.hidden_dim)
+        # add negative weight to opponents
+        if self.team == 0:
+            w_1[:,self.n_agents//2:,:] = -w_1[:,self.n_agents//2:,:]
+        else:
+            w_1[:,:self.n_agents//2,:] = -w_1[:,:self.n_agents//2,:]
+        b_1 = self.hyper_b1(states)
+        b_1 = b_1.view(-1, 1, self.hidden_dim)
+        hidden = F.elu(torch.bmm(q_values, w_1) + b_1)
+
+        w_2 = torch.abs(self.hyper_w2(states))
+        w_2 = w_2.view(-1, self.hidden_dim, 1)
+        b_2 = self.hyper_b2(states)
+        b_2 = b_2.view(-1, 1, 1)
+
+        q_tot = torch.bmm(hidden, w_2 ) + b_2
+        q_tot = q_tot.view(-1, 1)
+
+        return q_tot
 
 #Normal distribution module with fixed mean and std.
 class FixedNormal(torch.distributions.Normal):

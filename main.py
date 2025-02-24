@@ -30,5 +30,7 @@ if __name__ == '__main__':
     config['logdir'] = config['logdir'].replace('dynamic-nashq', 'iql')
     iql = IQL(env, config)
     iql.learn(total_steps)
-    
-    # iql.save_model()
+
+    config['logdir'] = config['logdir'].replace('iql', 'nwqmix')
+    nwqix = NWQMix(env, config)
+    nwqix.learn(total_steps)
