@@ -235,7 +235,7 @@ class TwoTeamZeroSumSymmetricStochasticEnv(StochasticGame):
                     player_strategy_str.append('[' + ', '.join(str(round(x, 4)) for x in strategy[i]) + ']')
                 writer.writerow(player_strategy_str)
                 infos.insert(0, {'algo':'feasibility',
-                                'q-values':expected_payoff})
+                                'expected_payoff':expected_payoff})
 
                 # q-values
                 for algo_info in infos:
@@ -243,8 +243,9 @@ class TwoTeamZeroSumSymmetricStochasticEnv(StochasticGame):
                     writer.writerow([algo_info['algo']])
                     writer.writerow(['Player '+str(i+1) for i in range(self.n_agents)])
                     q_values = []
-                    for q_value in list(algo_info['q-values'].round(3)):
-                        q_values.append(str(q_value))
+                    for i in range(self.n_agents):
+                        expected_payoff = np.dot(strategy[i], algo_info['q-values'][i]) if algo_info['algo']!='feasibility' else algo_info['expected_payoff'][i]
+                        q_values.append(str(expected_payoff.round(3)))
                     writer.writerow(q_values)
 
 if __name__ == '__main__':

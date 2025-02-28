@@ -305,11 +305,10 @@ class NWQMix(QMIX):
 
     def extract_q(self):
         obs = torch.as_tensor([0], dtype=torch.float32, device=self.device)
-        q_values = np.zeros(self.n_agents)
+        q_values = np.zeros((self.n_agents, self.n_actions))
         with torch.no_grad():
             for i in range(self.n_agents):
                 action_value = self.policy[self.get_team(i) if self.parameter_sharing else i](obs).squeeze()
-                max_q = torch.max(action_value)
-                q_values[i] = max_q.cpu().numpy()
+                q_values[i] = action_value.cpu().numpy()
 
         return {'algo':'NWQMIX', 'q-values':q_values}
