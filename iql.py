@@ -137,6 +137,17 @@ class IQL(QMIX):
             self.policy[i].load_state_dict(models['agent'+str(i)])  
             self.target_policy[i].load_state_dict(models['agent'+str(i)])
 
+    def extract_q(self):
+        obs = torch.as_tensor([0], dtype=torch.float32, device=self.device)
+        q_values = np.zeros(self.n_agents)
+        with torch.no_grad():
+            for i in range(self.n_agents):
+                action_value = self.policy[self.get_team(i) if self.parameter_sharing else i](obs).squeeze()
+                max_q = torch.max(action_value)
+                q_values[i] = max_q.cpu().numpy()
+
+        return {'algo':'IQL', 'q-values':q_values}
+    
 class NashQ(IQL):
     def __init__(self, env, config):
         self.dynamic = config['nash-dynamic']
@@ -261,6 +272,17 @@ class NashQ(IQL):
             self.policy[i].load_state_dict(models['agent'+str(i)])
             if self.dynamic:
                 self.target_policy[i].load_state_dict(models['agent'+str(i)])
+
+    def extract_q(self):
+        obs = torch.as_tensor([0], dtype=torch.float32, device=self.device)
+        q_values = np.zeros(self.n_agents)
+        with torch.no_grad():
+            for i in range(self.n_agents):
+                action_value = self.policy[self.get_team(i) if self.parameter_sharing else i](obs).squeeze()
+                max_q = torch.max(action_value)
+                q_values[i] = max_q.cpu().numpy()
+
+        return {'algo':'NashQ', 'q-values':q_values}
 
 class DynamicSolver():
     def __init__(self, env:StochasticGame, config):

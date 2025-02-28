@@ -3,7 +3,7 @@ from iql import IQL, NashQ
 import torch
 from envs import *
 
-total_steps = int(1e3)
+total_steps = int(1e5)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 config = {
     'eps_start':0.99,
@@ -24,13 +24,20 @@ config = {
 if __name__ == '__main__':
     print(device)
     env = TwoTeamZeroSumSymmetricStochasticEnv(n_states=1, n_agents=4, n_actions=2)
+    infos = []
     nashq = NashQ(env, config)
     nashq.learn(total_steps)
+    infos.append(nashq.extract_q())
 
     config['logdir'] = config['logdir'].replace('dynamic-nashq', 'iql')
     iql = IQL(env, config)
     iql.learn(total_steps)
+    infos.append(iql.extract_q())
 
     config['logdir'] = config['logdir'].replace('iql', 'nwqmix')
     nwqix = NWQMix(env, config)
     nwqix.learn(total_steps)
+    infos.append(nwqix.extract_q())
+
+    config['logdir'] = config['logdir'].replace('nwqmix', 'dynamic-nashq')
+    env.save(infos, config['logdir'])

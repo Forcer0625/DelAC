@@ -1,6 +1,10 @@
 import numpy as np
 from itertools import product
 import random
+import csv
+from team_feasibility import feasibility_run
+from game_generator import TwoTeamZeroSumSymmetricGame
+from judger import NashEquilibriumJudger
 
 class StochasticGame():
     def __init__(self, n_states:int, n_agents:int, n_actions:int, payoff_matrix:np.ndarray = None, state_transmition:np.ndarray = None, terminal_state:list = None, seed=None):
@@ -193,6 +197,55 @@ class TwoTeamZeroSumSymmetricStochasticEnv(StochasticGame):
         team1_payoffs = self.team_payoff_indicator[self.state][joint_action_idx]
         team2_payoffs = -team1_payoffs
         return np.array([team1_payoffs, team2_payoffs])
+    
+    def save(self, infos=[], logdir='example'):
+        '''
+        save following infomation to .csv(4 players only)
+        payoff matrix
+        (feasibility)nash equilibrium and its expected payoff
+        Q-values for all agents and alogrithms
+        Parameters:
+        - infos (list): a list of dictionaries, which contains alogrithm name and q-values with keys \'algo\' and \'q-values\'
+        '''
+        if self.n_agents == 4 and self.n_actions == 2:
+            with open('./runs/'+logdir+'/data.csv', 'w', newline='') as csvfile:
+                writer = csv.writer(csvfile)
+                for player4_action in [0, 1]:
+                    writer.writerow(['Player 4: '+str(player4_action)])
+                    for player3_action in [0, 1]:
+                        writer.writerow(['Player 3: '+str(player3_action), 'Player 2: 0', 'Player 2: 1'])
+                        for player1_action in [0, 1]:
+                            write_data = ['Player 1: '+str(player1_action)]
+                            for player2_acton in [0, 1]:
+                                joint_action = (player1_action, player2_acton, player3_action, player4_action)
+                                pay_off_str = ', '.join(str(x) for x in self.payoff_matrix[0][joint_action])
+                                write_data.append(pay_off_str)
+                            writer.writerow(write_data)
+                        writer.writerow([])
+                    writer.writerow([])
+
+                # feasibility
+                game = TwoTeamZeroSumSymmetricGame(n_players=self.n_agents)
+                game.set_payoff_matrix(self.payoff_matrix[0])
+                strategy, _, _ = feasibility_run(game)
+                strategy = strategy.reshape(self.n_agents, 2)
+                expected_payoff = NashEquilibriumJudger.get_payoff(strategy, game.payoff_matrix)
+                player_strategy_str = []
+                for i in range(self.n_agents):
+                    player_strategy_str.append('[' + ', '.join(str(round(x, 4)) for x in strategy[i]) + ']')
+                writer.writerow(player_strategy_str)
+                infos.insert(0, {'algo':'feasibility',
+                                'q-values':expected_payoff})
+
+                # q-values
+                for algo_info in infos:
+                    writer.writerow([])
+                    writer.writerow([algo_info['algo']])
+                    writer.writerow(['Player '+str(i+1) for i in range(self.n_agents)])
+                    q_values = []
+                    for q_value in list(algo_info['q-values'].round(3)):
+                        q_values.append(str(q_value))
+                    writer.writerow(q_values)
 
 if __name__ == '__main__':
     game = TwoTeamZeroSumSymmetricEnv(n_agents=4, n_actions=2)
