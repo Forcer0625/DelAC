@@ -241,12 +241,15 @@ class TwoTeamZeroSumSymmetricStochasticEnv(StochasticGame):
                 for algo_info in infos:
                     writer.writerow([])
                     writer.writerow([algo_info['algo']])
-                    writer.writerow(['Player '+str(i+1) for i in range(self.n_agents)])
+                    writer.writerow([''] + ['Player '+str(i+1) for i in range(self.n_agents)])
                     q_values = []
+                    max_qs = []
                     for i in range(self.n_agents):
                         expected_payoff = np.dot(strategy[i], algo_info['q-values'][i]) if algo_info['algo']!='feasibility' else algo_info['expected_payoff'][i]
                         q_values.append(str(expected_payoff.round(3)))
-                    writer.writerow(q_values)
+                        max_qs.append(str(np.max(algo_info['q-values'][i].round(3))) if algo_info['algo']!='feasibility' else '')
+                    writer.writerow(['dot'] + q_values)
+                    writer.writerow(['max'] + max_qs)
 
 if __name__ == '__main__':
     game = TwoTeamZeroSumSymmetricEnv(n_agents=4, n_actions=2)
