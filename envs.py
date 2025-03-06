@@ -5,6 +5,7 @@ import csv
 from team_feasibility import feasibility_run
 from game_generator import TwoTeamZeroSumSymmetricGame
 from judger import NashEquilibriumJudger
+from torch.utils.tensorboard import SummaryWriter
 
 class StochasticGame():
     def __init__(self, n_states:int, n_agents:int, n_actions:int, payoff_matrix:np.ndarray = None, state_transmition:np.ndarray = None, terminal_state:list = None, seed=None):
@@ -198,7 +199,7 @@ class TwoTeamZeroSumSymmetricStochasticEnv(StochasticGame):
         team2_payoffs = -team1_payoffs
         return np.array([team1_payoffs, team2_payoffs])
     
-    def save(self, infos=[], logdir='example'):
+    def save(self, infos=[], config={}):
         '''
         save following infomation to .csv(4 players only)
         payoff matrix
@@ -208,6 +209,8 @@ class TwoTeamZeroSumSymmetricStochasticEnv(StochasticGame):
         - infos (list): a list of dictionaries, which contains alogrithm name and q-values with keys \'algo\' and \'q-values\'
         '''
         if self.n_agents == 4 and self.n_actions == 2:
+            logdir = config['logdir']
+            logger = SummaryWriter('./runs/'+logdir)
             with open('./runs/'+logdir+'/data.csv', 'w', newline='') as csvfile:
                 writer = csv.writer(csvfile)
                 for player4_action in [0, 1]:
@@ -236,6 +239,11 @@ class TwoTeamZeroSumSymmetricStochasticEnv(StochasticGame):
                 writer.writerow(player_strategy_str)
                 infos.insert(0, {'algo':'feasibility',
                                 'expected_payoff':expected_payoff})
+                
+                # nash eqilibrium expected payoff asymptote
+                for i in range(config['bath_size']-1, config['total_steps']):
+                    logger.add_scalar('Train/Team1-Ep.Reward', expected_payoff[ 0], i+1)
+                    logger.add_scalar('Train/Team2-Ep.Reward', expected_payoff[-1], i+1)
 
                 # q-values
                 for algo_info in infos:
