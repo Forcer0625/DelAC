@@ -3,7 +3,7 @@ from iql import IQL, NashQ
 import torch
 from envs import *
 
-total_steps = int(1e5)
+total_steps = int(4e4)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 config = {
     'total_steps':total_steps,
@@ -19,7 +19,7 @@ config = {
     'nash-dynamic':True,
     'use-parameter-sharing':True,
     'feasibility':True,
-    'logdir':'test001-dynamic-nashq',
+    'logdir':'test003-dynamic-nashq',
 }
 
 if __name__ == '__main__':

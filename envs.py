@@ -241,7 +241,7 @@ class TwoTeamZeroSumSymmetricStochasticEnv(StochasticGame):
                                 'expected_payoff':expected_payoff})
                 
                 # nash eqilibrium expected payoff asymptote
-                for i in range(config['bath_size']-1, config['total_steps']):
+                for i in range(config['batch_size']-1, config['total_steps']):
                     logger.add_scalar('Train/Team1-Ep.Reward', expected_payoff[ 0], i+1)
                     logger.add_scalar('Train/Team2-Ep.Reward', expected_payoff[-1], i+1)
 
