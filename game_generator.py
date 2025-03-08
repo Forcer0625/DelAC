@@ -414,6 +414,27 @@ class TwoTeamSymmetricGame(GeneralSumGame):
         team2_payoffs = self.team_2_payoff_indicator[joint_action_idx[1]]
         return np.array([team1_payoffs, team2_payoffs])
     
+    def set_payoff_matrix(self, payoff_matrix):
+        self.payoff_matrix = payoff_matrix
+        self.joint_action_indicator = np.zeros((self.n_players//2+1, self.n_players//2+1, 2), dtype=np.int32)
+
+        team_1_min_payoff = np.min(payoff_matrix[...,:self.n_players//2])
+        team_1_max_payoff = np.max(payoff_matrix[...,:self.n_players//2])
+        self.team_1_payoff_indicator = np.arange(team_1_min_payoff, team_1_max_payoff+1, dtype=np.int32)
+
+        team_2_min_payoff = np.min(payoff_matrix[...,self.n_players//2:])
+        team_2_max_payoff = np.max(payoff_matrix[...,self.n_players//2:])
+        self.team_2_payoff_indicator = np.arange(team_2_min_payoff, team_2_max_payoff+1, dtype=np.int32)
+
+        all_actions = list(product([0, 1], repeat=self.n_players))
+        for joint_action in all_actions:
+            team_1_payoff = payoff_matrix[joint_action][ 0]
+            team_1_action_indicator = joint_action[:self.n_players//2].count(1)
+            team_2_payoff = payoff_matrix[joint_action][-1]
+            team_2_action_indicator = joint_action[self.n_players//2:].count(1)
+            self.joint_action_indicator[team_1_action_indicator, team_2_action_indicator][0] = team_1_payoff - team_1_min_payoff
+            self.joint_action_indicator[team_1_action_indicator, team_2_action_indicator][1] = team_2_payoff - team_2_min_payoff
+    
 class TwoTeamZeroSumSymmetricGame(TwoTeamSymmetricGame):
     def generator_game(self, seed=None, low=-10, high=10):
         # rng = np.random.default_rng(seed)
