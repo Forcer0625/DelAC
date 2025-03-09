@@ -339,6 +339,39 @@ class TwoTeamSymmetricStochasticEnv(TwoTeamZeroSumSymmetricStochasticEnv):
         game = TwoTeamSymmetricGame(n_players=self.n_agents)
         game.set_payoff_matrix(self.payoff_matrix[0])
         return game
+    
+class GMP(TwoTeamZeroSumSymmetricStochasticEnv):
+    def __init__(self, w=0.5):
+        self.n_players = 4
+        payoff_matrix = np.zeros((1, 2, 2, 2, 2, 4), dtype=np.float16)
+        all_actions = list(product([0, 1], repeat=self.n_players))
+        for joint_action in all_actions:
+            team_1_H = joint_action[:self.n_players//2].count(1)
+            team_2_H = joint_action[self.n_players//2:].count(1)
+            if team_1_H == 2:
+                if team_2_H == 2:
+                    payoff = np.array([1, 1, -1, -1], dtype=np.float16)
+                elif team_2_H == 0:
+                    payoff = np.array([-1, -1, 1, 1], dtype=np.float16)
+                else:
+                    payoff = np.array([w, w, -w, -w], dtype=np.float16)
+            elif team_1_H == 0:
+                if team_2_H == 2:
+                    payoff = np.array([-1, -1, 1, 1], dtype=np.float16)
+                elif team_2_H == 0:
+                    payoff = np.array([1, 1, -1, -1], dtype=np.float16)
+                else:
+                    payoff = np.array([w, w, -w, -w], dtype=np.float16)
+            else:
+                if team_2_H == 1:
+                    payoff = np.array([0, 0, 0, 0], dtype=np.float16)
+                else:
+                    payoff = np.array([-w, -w, w, w], dtype=np.float16)
+
+            payoff_matrix[0][joint_action] = payoff
+
+        super().__init__(n_states=1, n_agents=4, n_actions=2, payoff_matrix=payoff_matrix,\
+                         state_transmition=np.ones((1,1)), terminal_state=[0])
 
 if __name__ == '__main__':
     game = TwoTeamZeroSumSymmetricEnv(n_agents=4, n_actions=2)
