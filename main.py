@@ -31,10 +31,10 @@ ac_config = {
     'batch_size':256,
     "grad_norm":0.5,
 }
-ac_config['print_every'] = total_steps//config['batch_size']//ac_config['n_env']//10
+ac_config['print_every'] = total_steps//config['batch_size']//ac_config['n_env']//10 + 1
 
 if __name__ == '__main__':
-    env = TwoTeamSymmetricStochasticEnv(n_states=1, n_agents=4, n_actions=2)
+    env = TwoTeamZeroSumSymmetricStochasticEnv(n_states=1, n_agents=4, n_actions=2)
     config['n_states'] = env.n_states
     config['n_agents'] = env.n_agents
     config['n_actions'] = env.n_actions
@@ -64,3 +64,10 @@ if __name__ == '__main__':
     runner = OnPolicyRunner(envs, config)
     ia2c = IA2C(runner, config)
     ia2c.learn(total_steps)
+    with torch.no_grad():
+        obs = torch.as_tensor([0]).float().to(config['device'])
+        team_1_a_porbs = ia2c.actor_critic[ 0].actor.model(obs)
+        team_2_a_porbs = ia2c.actor_critic[-1].actor.model(obs)
+    ia2c.config['team 1 strategy'] = list(team_1_a_porbs.cpu().numpy())
+    ia2c.config['team 2 strategy'] = list(team_2_a_porbs.cpu().numpy())
+    ia2c.save_config()
