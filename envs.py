@@ -243,6 +243,7 @@ class TwoTeamZeroSumSymmetricStochasticEnv(StochasticGame):
                 for i in range(config['batch_size']-1, config['total_steps']):
                     logger.add_scalar('Train/Team1-Ep.Reward', expected_payoff[ 0], i+1)
                     logger.add_scalar('Train/Team2-Ep.Reward', expected_payoff[-1], i+1)
+                    break
 
                 # q-values
                 for algo_info in infos:
