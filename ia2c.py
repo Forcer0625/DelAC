@@ -60,6 +60,7 @@ class IA2C():
     def log_info(self, step, info:dict):
         for key in info.keys():
             self.logger.add_scalar('Train/'+key, info[key], step)
+        self.infos.append(info)
                 
     def learn(self, total_steps):
         self.save_config()
@@ -124,6 +125,7 @@ class IA2C():
 
         self.runner.close()
         self.save_model()
+        torch.save(self.infos, './log/'+self.config['logdir'])
         print("----Training End----")
     
     def update(self, mb_observations, mb_actions, mb_advs, mb_returns, target_policy:ActorCritic):
