@@ -17,6 +17,7 @@ cvxpy = "*"
 torch = {version = "==2.0.1+cu117", index = "downloadpytorch"}
 tensorboard = "*"
 cloudpickle = "*"
+seaborn = "*"
 
 [dev-packages]
 
