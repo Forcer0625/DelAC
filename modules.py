@@ -148,7 +148,7 @@ class DiagGaussian(nn.Module):
         return FixedNormal(mean, std.to(x.device))
 
 class Actor(nn.Module):
-    def __init__(self, input_dim, action_dim, hidden_dim=64, std=0.5, continous_action=False):
+    def __init__(self, input_dim, action_dim, hidden_dim=128, std=0.5, continous_action=False):
         super(Actor, self).__init__()
         init_ = lambda m: init(
 			m,
@@ -204,7 +204,7 @@ class Actor(nn.Module):
         return dist.log_prob(action), dist.entropy()
    
 class Critic(nn.Module):
-    def __init__(self, input_dim, action_dim, hidden_dim=64, value_dim=1, continous_action=False):
+    def __init__(self, input_dim, action_dim, hidden_dim=128, value_dim=1, continous_action=False):
         super(Critic, self).__init__()
 
         init_ = lambda m: init(
@@ -255,3 +255,29 @@ class ActorCritic(nn.Module):
     def evaluate(self, observation, action):
         '''Return log probs & entropy'''
         return self.actor.evaluate(observation, action)
+    
+class CentralisedCritic(nn.Module):
+    def __init__(self, input_dim, action_dim, hidden_dim=128, value_dim=2, device=torch.device('cpu')):
+        super(CentralisedCritic, self).__init__()
+
+        init_ = lambda m: init(
+            m,
+            nn.init.orthogonal_,
+            lambda x: nn.init.constant_(x, 0),
+            nn.init.calculate_gain('relu')
+        )
+
+        self.model = nn.Sequential(
+            init_(nn.Linear(input_dim+action_dim, hidden_dim)),
+            nn.Tanh(),
+            init_(nn.Linear(hidden_dim, hidden_dim)),
+            nn.Tanh(),
+            init_(nn.Linear(hidden_dim, value_dim))
+        )
+        self.device = device
+        self.to(device)
+
+    def forward(self, observation, action):
+        feature = torch.cat((observation, action), 1)
+        x = self.model(feature)
+        return x

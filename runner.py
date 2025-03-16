@@ -4,7 +4,7 @@ import torch
 from utilis import ReplayBuffer, Normalization, RewardScaling
 from envs import *
 from multi_env import MultiEnv
-from modules import MLPAgent, ActorCritic
+from modules import *
 import random
 import pygambit as gbt
 from copy import deepcopy
@@ -225,3 +225,53 @@ class OnPolicyRunner():
     
     def close(self):
         self.env.close()
+
+class CentralisedOnPolicyRunner(OnPolicyRunner):
+    def run(self, actors:list[Actor], critic:CentralisedCritic):
+        self.device = critic.device
+        episodes = 0
+        #1. Run n steps
+        #-------------------------------------
+        for step in range(self.batch_size):
+            self.mb_observations[:, step, :, :]  = self.observations.copy()
+            for i in range(self.n_agents):
+                observations = torch.from_numpy(self.observations[i]).float().to(self.device)
+                action, a_logs = actors[i](observations)
+                action = action.cpu().numpy()
+                self.mb_actions[i, step, :] = action
+                self.actions[i] = action
+
+            actions = torch.from_numpy(self.actions).float().to(self.device)
+            actions = actions.transpose(1 ,0)
+            values = critic(observations, actions) # (n_env, 2)
+            values = np.transpose(values.cpu().numpy())
+            self.mb_values[:self.n_agents//2, step, :]  = values[0]
+            self.mb_values[self.n_agents//2:, step, :]  = values[1]
+
+            self.observations, rewards, self.dones, self.truncations, _ = self.env.step(np.transpose(self.actions))
+            self.observations = np.transpose(self.observations, (1,0,2))
+            rewards = np.transpose(rewards, (1,0))
+
+            self.mb_rewards[:, step, :] = rewards
+            self.mb_truncations[step, :] = self.truncations
+            self.mb_dones[step, :] = self.dones
+            last_done = np.logical_or(self.dones, self.truncations)
+            episodes += int(last_done.sum())
+
+        last_values = np.zeros((self.n_agents, self.n_env), dtype=np.float32)
+        mb_returns = np.zeros((self.n_agents, self.batch_size, self.n_env), dtype=np.float32)
+
+        values = critic(torch.from_numpy(self.observations[0]).float().to(self.device),
+                        torch.from_numpy(self.actions).float().to(self.device).transpose(1, 0)).cpu().numpy()
+        values = np.transpose(values)
+        for i in range(self.n_agents):
+            last_values[i] = values[0 if i < self.n_agents//2 else 1]
+            mb_returns[i] = self.compute_gae(self.mb_rewards[i], self.mb_values[i], self.mb_dones, last_values[i], last_done)
+
+        self.record()
+
+        return self.mb_observations.reshape(self.n_agents, self.batch_size*self.n_env, self.input_dim), \
+                self.mb_actions.reshape(self.n_agents, self.batch_size*self.n_env), \
+                self.mb_values.reshape(self.n_agents, -1), \
+                mb_returns.reshape(self.n_agents, -1),\
+                episodes
