@@ -2,11 +2,16 @@ import torch
 import torch.nn as nn
 import time
 import json
+import numpy as np
 from copy import deepcopy
 from modules import Actor, CentralisedCritic
 from runner import CentralisedOnPolicyRunner
 from ia2c import IA2C
 from torch.utils.tensorboard import SummaryWriter
+from itertools import product
+import csv
+from team_feasibility import feasibility_run
+from judger import NashEquilibriumJudger
 
 class CA2C(IA2C):
     def get_policy(self):
@@ -142,3 +147,59 @@ class CA2C(IA2C):
         self.critic_optim.step()
         
         return v_loss.item()
+    
+    def make_payoff_matrix(self):
+        shape = [2 for _ in range(self.n_agents)]
+        shape.append(self.n_agents)
+        payoff_matrix = np.zeros(shape=shape)
+        with torch.no_grad():
+            all_actions = list(product([0, 1], repeat=self.n_agents))
+            for joint_action in all_actions:
+                feature = np.array([0] + list(joint_action))
+                feature = torch.from_numpy(feature).float().to(self.device)
+                team_payoffs = self.critic.model(feature).cpu().numpy()
+
+                payoff_matrix[joint_action][:self.n_agents//2] = round(team_payoffs[0], 1)
+                payoff_matrix[joint_action][self.n_agents//2:] = round(team_payoffs[1], 1)
+
+        return payoff_matrix
+    
+    def save_game(self, game_type):
+        if self.n_agents == 4 and self.action_dim == 2:
+            logdir = self.config['logdir']
+            payoff_matrix = self.make_payoff_matrix()
+            game = game_type(self.n_agents)
+            game.set_payoff_matrix(payoff_matrix)
+            with open('./runs/'+logdir+'/critic_learned.csv', 'w', newline='') as csvfile:
+                writer = csv.writer(csvfile)
+                for player4_action in [0, 1]:
+                    writer.writerow(['Player 4: '+str(player4_action)])
+                    for player3_action in [0, 1]:
+                        writer.writerow(['Player 3: '+str(player3_action), 'Player 2: 0', 'Player 2: 1'])
+                        for player1_action in [0, 1]:
+                            write_data = ['Player 1: '+str(player1_action)]
+                            for player2_acton in [0, 1]:
+                                joint_action = (player1_action, player2_acton, player3_action, player4_action)
+                                pay_off_str = ', '.join(str(round(x, 1)) for x in game.payoff_matrix[joint_action])
+                                write_data.append(pay_off_str)
+                            writer.writerow(write_data)
+                        writer.writerow([])
+                    writer.writerow([])
+
+                # feasibility
+                strategy, _, _ = feasibility_run(game)
+                strategy = strategy.reshape(self.n_agents, 2)
+                expected_payoff = NashEquilibriumJudger.get_payoff(strategy, game.payoff_matrix)
+                player_strategy_str = []
+                for i in range(self.n_agents):
+                    player_strategy_str.append('[' + ', '.join(str(round(x, 4)) for x in strategy[i]) + ']')
+                writer.writerow(player_strategy_str)
+
+                writer.writerow([])
+                writer.writerow(['feasibility'])
+                writer.writerow(['Player '+str(i+1) for i in range(self.n_agents)])
+                player_expected_payoff = []
+                for i in range(self.n_agents):
+                    player_expected_payoff.append(str(round(expected_payoff[i], 4)))
+                writer.writerow(player_expected_payoff)
+

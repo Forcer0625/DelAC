@@ -85,4 +85,5 @@ if __name__ == '__main__':
     ca2c.config['team 2 strategy'] = [str(i) for i in list(team_2_a_porbs.cpu().numpy())]
     print(team_1_a_porbs)
     print(team_2_a_porbs)
+    ca2c.save_game(TwoTeamSymmetricGame)
     ca2c.save_config()
