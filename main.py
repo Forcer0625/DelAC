@@ -1,7 +1,7 @@
 from qmix import *
 from iql import IQL, NashQ
 from ia2c import IA2C
-from ca2c import CA2C
+from ca2c import CA2C, CFAC
 import torch
 from envs import *
 from multi_env import make_env
@@ -87,3 +87,18 @@ if __name__ == '__main__':
     print(team_2_a_porbs)
     ca2c.save_game(TwoTeamSymmetricGame)
     ca2c.save_config()
+
+    config['logdir'] = config['logdir'].replace('ca2c', 'cfac')
+    runner = CentralisedOnPolicyRunner(envs, config)
+    cfac = CFAC(runner, config)
+    cfac.learn(total_steps)
+    with torch.no_grad():
+        obs = torch.as_tensor([0]).float().to(config['device'])
+        team_1_a_porbs = cfac.actors[ 0].model(obs)
+        team_2_a_porbs = cfac.actors[-1].model(obs)
+    cfac.config['team 1 strategy'] = [str(i) for i in list(team_1_a_porbs.cpu().numpy())]
+    cfac.config['team 2 strategy'] = [str(i) for i in list(team_2_a_porbs.cpu().numpy())]
+    print(team_1_a_porbs)
+    print(team_2_a_porbs)
+    cfac.save_game(TwoTeamSymmetricGame)
+    cfac.save_config()
