@@ -59,7 +59,8 @@ class IA2C():
 
     def log_info(self, step, info:dict):
         for key in info.keys():
-            self.logger.add_scalar('Train/'+key, info[key], step)
+            if key != 'Steps':
+                self.logger.add_scalar('Train/'+key, info[key], step)
         self.infos.append(info)
                 
     def learn(self, total_steps):
@@ -98,6 +99,7 @@ class IA2C():
                 'Loss.Actor':total_pg_loss,
                 'Loss.Critic':total_v_loss,
                 'Entropy': entropy,
+                'Step':steps
             }
             self.log_info(steps, info)
             
