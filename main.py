@@ -6,35 +6,34 @@ import torch
 from envs import *
 from multi_env import make_env
 
-total_steps = int(5e4)
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-config = {
-    'total_steps':total_steps,
-    'eps_start':0.99,
-    'eps_end':0.05,
-    'eps_dec':total_steps*0.35, # more leads to slower decay
-    'gamma':0.99,
-    'lr': 3e-4,
-    'tau':100, # more is harder
-    'batch_size':1024,
-    'memory_size':4096,
-    'device':device,
-    'nash-dynamic':True,
-    'use-parameter-sharing':True,
-    'feasibility':True,
-    'logdir':'test000-dynamic-nashq',
-}
-
-ac_config = {
-    'lam':0.95,
-    'ent_coef':0.0,
-    'n_env':4,
-    'batch_size':256,
-    "grad_norm":0.5,
-}
-ac_config['print_every'] = total_steps//config['batch_size']//10 + 1
-
 def train(env_name, training_num, w=0.5):
+    total_steps = int(5e4)
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    config = {
+        'total_steps':total_steps,
+        'eps_start':0.99,
+        'eps_end':0.05,
+        'eps_dec':total_steps*0.35, # more leads to slower decay
+        'gamma':0.99,
+        'lr': 3e-4,
+        'tau':100, # more is harder
+        'batch_size':1024,
+        'memory_size':4096,
+        'device':device,
+        'nash-dynamic':True,
+        'use-parameter-sharing':True,
+        'feasibility':True,
+        'logdir':'test000-dynamic-nashq',
+    }
+
+    ac_config = {
+        'lam':0.95,
+        'ent_coef':0.0,
+        'n_env':4,
+        'batch_size':256,
+        "grad_norm":0.5,
+    }
+    ac_config['print_every'] = total_steps//config['batch_size']//10 + 1
     config['logdir'] = env_name + str(training_num).zfill(3) + '-dynamic-nashq'
     
     if 'GMP' in env_name:
