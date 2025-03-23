@@ -236,12 +236,14 @@ class CFAC(CA2C):
             game = TwoTeamSymmetricGame(self.n_agents)
             game.set_payoff_matrix(payoff_matrix)
             strategy, _, _ = feasibility_run(game, self.n_agents)
+            valid = True
             if np.any(strategy < 0.0):
-                continue
-            strategy = strategy.reshape((self.n_agents, self.action_dim))
-            for i in range(self.n_agents):
-                pg_loss, entropy = self.update_actor(mb_obs[i], strategy[i], i)
-                total_pg_loss += pg_loss
+                valid = False
+            else:
+                strategy = strategy.reshape((self.n_agents, self.action_dim))
+                for i in range(self.n_agents):
+                    pg_loss, entropy = self.update_actor(mb_obs[i], strategy[i], i)
+                    total_pg_loss += pg_loss
 
             mean_return, std_return, mean_len = self.runner.get_performance()
             info = {
@@ -249,11 +251,12 @@ class CFAC(CA2C):
                 'Team2-Ep.Reward':mean_return[-1],
                 'Team1-Std.Reward':std_return[ 0],
                 'Team2-Std.Reward':std_return[-1],
-                'Loss.Actor':total_pg_loss,
                 'Loss.Critic':v_loss,
-                'Entropy': entropy,
                 'Step':steps
             }
+            if valid:
+                info['Loss.Actor'] = total_pg_loss
+                info['Entropy'] = entropy
             self.log_info(steps, info)
             
             if runtime_iterations % self.print_every == 0:

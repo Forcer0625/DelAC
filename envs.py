@@ -209,6 +209,7 @@ class TwoTeamZeroSumSymmetricStochasticEnv(StochasticGame):
         - infos (list): a list of dictionaries, which contains alogrithm name and q-values with keys \'algo\' and \'q-values\'
         '''
         if self.n_agents == 4 and self.n_actions == 2:
+            valid = True
             logdir = config['logdir']
             logger = SummaryWriter('./runs/'+logdir)
             with open('./runs/'+logdir+'/data.csv', 'w', newline='') as csvfile:
@@ -230,6 +231,8 @@ class TwoTeamZeroSumSymmetricStochasticEnv(StochasticGame):
                 # feasibility
                 game = self.feasibility_game()
                 strategy, _, _ = feasibility_run(game)
+                if np.any(strategy < 0.0):
+                    valid = False
                 strategy = strategy.reshape(self.n_agents, 2)
                 expected_payoff = NashEquilibriumJudger.get_payoff(strategy, game.payoff_matrix)
                 player_strategy_str = []
@@ -258,6 +261,7 @@ class TwoTeamZeroSumSymmetricStochasticEnv(StochasticGame):
                         max_qs.append(str(np.max(algo_info['q-values'][i].round(3))) if algo_info['algo']!='feasibility' else '')
                     writer.writerow(['dot'] + q_values)
                     writer.writerow(['max'] + max_qs)
+            return valid
 
     def feasibility_game(self):
         game = TwoTeamZeroSumSymmetricGame(n_players=self.n_agents)

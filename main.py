@@ -34,7 +34,7 @@ def train(env_name, training_num, w=0.5):
         "grad_norm":0.5,
     }
     ac_config['print_every'] = total_steps//config['batch_size']//10 + 1
-    config['logdir'] = env_name + str(training_num).zfill(3) + '-dynamic-nashq'
+    config['logdir'] = env_name + str(training_num).zfill(3) + '-nash'
     
     if 'GMP' in env_name:
         env = GMP(w=w)
@@ -50,6 +50,11 @@ def train(env_name, training_num, w=0.5):
     print(config)
 
     infos = []
+    valid = env.save(infos, config)
+    if not valid:
+        return False
+    
+    config['logdir'] = config['logdir'].replace('nash', 'dynamic-nashq')
     nashq = NashQ(env, config)
     nashq.learn(total_steps)
     infos.append(nashq.extract_q())
@@ -63,9 +68,6 @@ def train(env_name, training_num, w=0.5):
     nwqix = NWQMix(env, config)
     nwqix.learn(total_steps)
     infos.append(nwqix.extract_q())
-
-    config['logdir'] = config['logdir'].replace('nwqmix', 'nash')
-    env.save(infos, config)
 
     config.update(ac_config)
     config['logdir'] = config['logdir'].replace('nash', 'ia2c')
@@ -116,8 +118,12 @@ def train(env_name, training_num, w=0.5):
     cfac.save_config()
     envs.close()
 
+    return True
+
 if __name__ == '__main__':
     env_name = 'GMP(w=0.5)'
     for i in range(30):
         print(str(i+1).zfill(3)+':training...'+env_name)
-        train(env_name, i, 0.5)
+        valid = train(env_name, i+1, 0.5)
+        if not valid:
+            i = i - 1
