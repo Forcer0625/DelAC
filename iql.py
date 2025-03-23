@@ -222,10 +222,14 @@ class NashQ(IQL):
 
     def learn(self, total_steps):
         step = 0
+        team_1_mean_reward = []
+        team_2_mean_reward = []
         
         while step < total_steps:
             with torch.no_grad():
                 total_reward, step = self.runner.run(step, self.solver)
+            team_1_mean_reward.append(total_reward[ 0])
+            team_1_mean_reward.append(total_reward[-1])
 
             if len(self.memory) < self.batch_size:
                 continue
@@ -235,8 +239,8 @@ class NashQ(IQL):
             self.sync()
             
             info = {
-                'Team1-Ep.Reward':total_reward[ 0],
-                'Team2-Ep.Reward':total_reward[-1],
+                'Team1-Ep.Reward':np.mean(team_1_mean_reward[-100:]),
+                'Team2-Ep.Reward':np.mean(team_2_mean_reward[-100:]),
                 'Epsilon':self.runner.epsilon,
                 'Loss':loss,
             }
