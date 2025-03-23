@@ -80,8 +80,10 @@ def train(env_name, training_num, w=0.5):
     ia2c.config['team 1 strategy'] = [str(i) for i in list(team_1_a_porbs.cpu().numpy())]
     ia2c.config['team 2 strategy'] = [str(i) for i in list(team_2_a_porbs.cpu().numpy())]
     ia2c.save_config()
+    envs.close()
 
     config['logdir'] = config['logdir'].replace('ia2c', 'ca2c')
+    envs = MultiEnv([make_env(i, deepcopy(env), config) for i in range(config['n_env'])])
     runner = CentralisedOnPolicyRunner(envs, config)
     ca2c = CA2C(runner, config)
     ca2c.learn(total_steps)
@@ -95,8 +97,10 @@ def train(env_name, training_num, w=0.5):
     print(team_2_a_porbs)
     ca2c.save_game(TwoTeamSymmetricGame)
     ca2c.save_config()
+    envs.close()
 
     config['logdir'] = config['logdir'].replace('ca2c', 'cfac')
+    envs = MultiEnv([make_env(i, deepcopy(env), config) for i in range(config['n_env'])])
     runner = CentralisedOnPolicyRunner(envs, config)
     cfac = CFAC(runner, config)
     cfac.learn(total_steps)
@@ -110,7 +114,6 @@ def train(env_name, training_num, w=0.5):
     print(team_2_a_porbs)
     cfac.save_game(TwoTeamSymmetricGame)
     cfac.save_config()
-
     envs.close()
 
 if __name__ == '__main__':
