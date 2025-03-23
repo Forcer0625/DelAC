@@ -229,7 +229,7 @@ class NashQ(IQL):
             with torch.no_grad():
                 total_reward, step = self.runner.run(step, self.solver)
             team_1_mean_reward.append(total_reward[ 0])
-            team_1_mean_reward.append(total_reward[-1])
+            team_2_mean_reward.append(total_reward[-1])
 
             if len(self.memory) < self.batch_size:
                 continue

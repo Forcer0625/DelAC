@@ -72,7 +72,7 @@ class QMIX():
             
             info = {
                 'Team1-Ep.Reward':np.mean(team_1_mean_reward[-100:]),
-                'Team2-Ep.Reward':np.mean(team_1_mean_reward[-100:]),
+                'Team2-Ep.Reward':np.mean(team_2_mean_reward[-100:]),
                 'Epsilon':self.runner.epsilon,
                 'Loss':loss,
             }
