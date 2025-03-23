@@ -240,7 +240,7 @@ class ActorCritic(nn.Module):
         self.to(device)
 
         self.actor_optim = torch.optim.Adam(self.actor.parameters(), lr=lr, eps=eps)
-        self.critic_optim = torch.optim.Adam(self.critic.parameters(), lr=lr, eps=eps)
+        self.critic_optim = torch.optim.Adam(self.critic.parameters(), lr=lr*100.0, eps=eps)
 
     def forward(self, observation, action):
         '''Returns action probs, log probs and value '''        
@@ -266,9 +266,9 @@ class CentralisedCritic(nn.Module):
             lambda x: nn.init.constant_(x, 0),
             nn.init.calculate_gain('relu')
         )
-
+        self.actoin_dim = action_dim
         self.model = nn.Sequential(
-            init_(nn.Linear(input_dim+action_dim, hidden_dim)),
+            init_(nn.Linear(input_dim+2, hidden_dim)),
             nn.Tanh(),
             init_(nn.Linear(hidden_dim, hidden_dim)),
             nn.Tanh(),
@@ -278,6 +278,18 @@ class CentralisedCritic(nn.Module):
         self.to(device)
 
     def forward(self, observation, action):
-        feature = torch.cat((observation, action), 1)
+        if action.dim() == 1:
+            action = action.unsqueeze(0)  # 轉為 (1, 4)
+
+        # 分別計算前 2 個元素與後 2 個元素的 1.0 個數
+        team1_count = torch.sum(action[:, :self.actoin_dim//2], dim=1)
+        team2_count = torch.sum(action[:, self.actoin_dim//2:], dim=1)
+
+        # 合併結果，維持 batch 維度
+        joint_action_indicator = torch.stack([team1_count, team2_count], dim=1)
+
+        # 若原本無 batch 維度，則壓縮回 (2,)
+        action = joint_action_indicator.squeeze(0) if action.shape[0] == 1 else joint_action_indicator
+        feature = torch.cat((observation, action), 0 if observation.dim() == 1 else 1)
         x = self.model(feature)
         return x

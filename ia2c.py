@@ -51,8 +51,8 @@ class IA2C():
             for param_group in policy.actor_optim.param_groups:
                 param_group['lr'] = lr
 
-            for param_group in policy.critic_optim.param_groups:
-                param_group['lr'] = lr
+            # for param_group in policy.critic_optim.param_groups:
+            #     param_group['lr'] = lr
     
     def linear_ent_coef_decay(self, step, total_steps):
         self.ent_coef = self.config['ent_coef'] - (self.config['ent_coef'] * (step / float(total_steps)))
@@ -85,7 +85,7 @@ class IA2C():
                 total_pg_loss += pg_loss
                 total_v_loss += v_loss
 
-            steps += self.runner.n_env * self.batch_size
+            steps += self.batch_size
             
             self.linear_lr_decay(steps, total_steps)
             self.linear_ent_coef_decay(steps, total_steps)

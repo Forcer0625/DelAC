@@ -70,7 +70,7 @@ class CA2C(IA2C):
             mb_returns = mb_returns[self.n_agents//2-1:self.n_agents//2+1].transpose()
             v_loss = self.update_critic(mb_obs[i], mb_actions, mb_returns)
 
-            steps += self.runner.n_env * self.batch_size
+            steps += self.batch_size
             
             self.linear_lr_decay(steps, total_steps)
             self.linear_ent_coef_decay(steps, total_steps)
@@ -158,9 +158,9 @@ class CA2C(IA2C):
         with torch.no_grad():
             all_actions = list(product([0, 1], repeat=self.n_agents))
             for joint_action in all_actions:
-                feature = np.array([0] + list(joint_action))
-                feature = torch.from_numpy(feature).float().to(self.device)
-                team_payoffs = self.critic.model(feature).cpu().numpy()
+                obs = torch.as_tensor([0]).float().to(self.device)
+                actions = torch.as_tensor(joint_action).float().to(self.device)
+                team_payoffs = self.critic(obs, actions).cpu().numpy()
 
                 payoff_matrix[joint_action][:self.n_agents//2] = round(team_payoffs[0], 1)
                 payoff_matrix[joint_action][self.n_agents//2:] = round(team_payoffs[1], 1)
@@ -222,24 +222,26 @@ class CFAC(CA2C):
         while steps < total_steps:
             with torch.no_grad():
                 mb_obs, mb_actions, mb_values, mb_returns, episodes = self.runner.run(self.actors, self.critic)
+
+            steps +=  self.batch_size
+            total_episodes += episodes
+            runtime_iterations += 1
             
             mb_actions = mb_actions.transpose()
             mb_returns = mb_returns[self.n_agents//2-1:self.n_agents//2+1].transpose()
             v_loss = self.update_critic(mb_obs[0], mb_actions, mb_returns)
 
-            total_pg_loss = 0.0
+            total_pg_loss = entropy = 0.0
             payoff_matrix = self.make_payoff_matrix()
             game = TwoTeamSymmetricGame(self.n_agents)
             game.set_payoff_matrix(payoff_matrix)
             strategy, _, _ = feasibility_run(game, self.n_agents)
+            if np.any(strategy < 0.0):
+                continue
             strategy = strategy.reshape((self.n_agents, self.action_dim))
             for i in range(self.n_agents):
-                if np.min(strategy[i]) < 0.0:
-                    strategy[i] = np.exp(strategy[i])/sum(np.exp(strategy[i]))
                 pg_loss, entropy = self.update_actor(mb_obs[i], strategy[i], i)
                 total_pg_loss += pg_loss
-
-            steps += self.runner.n_env * self.batch_size
 
             mean_return, std_return, mean_len = self.runner.get_performance()
             info = {
@@ -254,8 +256,6 @@ class CFAC(CA2C):
             }
             self.log_info(steps, info)
             
-            total_episodes += episodes
-            runtime_iterations += 1
             if runtime_iterations % self.print_every == 0:
                 n_sec = time.time() - t_start
                 fps = int(runtime_iterations*self.runner.n_env*self.batch_size / n_sec)

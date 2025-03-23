@@ -6,7 +6,7 @@ import torch
 from envs import *
 from multi_env import make_env
 
-total_steps = int(1e5)
+total_steps = int(5e4)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 config = {
     'total_steps':total_steps,
@@ -27,12 +27,12 @@ config = {
 
 ac_config = {
     'lam':0.95,
-    'ent_coef':0.05,
+    'ent_coef':0.0,
     'n_env':4,
     'batch_size':256,
     "grad_norm":0.5,
 }
-ac_config['print_every'] = total_steps//config['batch_size']//ac_config['n_env']//10 + 1
+ac_config['print_every'] = total_steps//config['batch_size']//10 + 1
 
 if __name__ == '__main__':
     env = GMP(w=0.5)#TwoTeamZeroSumSymmetricStochasticEnv(n_states=1, n_agents=4, n_actions=2)
