@@ -33,7 +33,7 @@ def train(env_name, training_num, w=0.5):
         'batch_size':256,
         "grad_norm":0.5,
     }
-    ac_config['print_every'] = total_steps//config['batch_size']//10 + 1
+    ac_config['print_every'] = 5120 + 1
     config['logdir'] = env_name + str(training_num).zfill(3) + '-nash'
     
     if 'GMP' in env_name:
@@ -70,7 +70,7 @@ def train(env_name, training_num, w=0.5):
     infos.append(nwqix.extract_q())
 
     config.update(ac_config)
-    config['logdir'] = config['logdir'].replace('nash', 'ia2c')
+    config['logdir'] = config['logdir'].replace('nwqmix', 'ia2c')
     envs = MultiEnv([make_env(i, deepcopy(env), config) for i in range(config['n_env'])])
     runner = OnPolicyRunner(envs, config)
     ia2c = IA2C(runner, config)
