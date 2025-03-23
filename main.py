@@ -34,8 +34,17 @@ ac_config = {
 }
 ac_config['print_every'] = total_steps//config['batch_size']//10 + 1
 
-if __name__ == '__main__':
-    env = GMP(w=0.5)#TwoTeamZeroSumSymmetricStochasticEnv(n_states=1, n_agents=4, n_actions=2)
+def train(env_name, training_num, w=0.5):
+    config['logdir'] = env_name + str(training_num).zfill(3) + '-dynamic-nashq'
+    
+    if 'GMP' in env_name:
+        env = GMP(w=w)
+        config['gmp_w'] = str(w)
+    elif env_name == 'ZeroSum':
+        env = TwoTeamZeroSumSymmetricStochasticEnv(n_states=1, n_agents=4, n_actions=2)
+    elif env_name == 'GeneralSum':
+        env = TwoTeamSymmetricStochasticEnv(n_states=1, n_agents=4, n_actions=2)
+
     config['n_states'] = env.n_states
     config['n_agents'] = env.n_agents
     config['n_actions'] = env.n_actions
@@ -102,3 +111,11 @@ if __name__ == '__main__':
     print(team_2_a_porbs)
     cfac.save_game(TwoTeamSymmetricGame)
     cfac.save_config()
+
+    envs.close()
+
+if __name__ == '__main__':
+    env_name = 'GMP(w=0.5)'
+    for i in range(30):
+        print(str(i+1).zfill(3)+':training...'+env_name)
+        train(env_name, i, 0.5)
