@@ -75,6 +75,7 @@ class QMIX():
                 'Team2-Ep.Reward':np.mean(team_2_mean_reward[-100:]),
                 'Epsilon':self.runner.epsilon,
                 'Loss':loss,
+                'Step':step,
             }
             self.log_info(step, info)
             
