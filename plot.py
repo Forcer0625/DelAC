@@ -24,7 +24,7 @@ def smooth_tensorboard(data, alpha=0.6):
         smoothed.append(last)
     return pd.Series(smoothed, index=data.index)
 
-logdir = './log/test'
+logdir = './log/'
 # test013-032 50k steps
 nash_val = [
     [5.963, -5.963],
@@ -75,24 +75,60 @@ nash_val = [
 #     [5.171,5.976],
 #     [5.947,4.62],
 # ]
-algos = ['iql', 'dynamic-nashq', 'nwqmix']#, 'ia2c']
+# GMP(w=0.5)
+nash_val = [
+    [0.0, 0.0],
+    [0.0, 0.0],
+    [0.0, 0.0],
+    [0.0, 0.0],
+    [0.0, 0.0],
+    [0.0, 0.0],
+    [0.0, 0.0],
+    [0.0, 0.0],
+    [0.0, 0.0],
+    [0.0, 0.0],
+    [0.0, 0.0],
+    [0.0, 0.0],
+    [0.0, 0.0],
+    [0.0, 0.0],
+    [0.0, 0.0],
+    [0.0, 0.0],
+    [0.0, 0.0],
+    [0.0, 0.0],
+    [0.0, 0.0],
+    [0.0, 0.0],
+    [0.0, 0.0],
+    [0.0, 0.0],
+    [0.0, 0.0],
+    [0.0, 0.0],
+    [0.0, 0.0],
+    [0.0, 0.0],
+    [0.0, 0.0],
+    [0.0, 0.0],
+    [0.0, 0.0],
+    [0.0, 0.0],
+    [0.0, 0.0],
+]
+algos = ['ia2c', 'ca2c', 'cfac']
+env_name = 'GMP(w=0.5)'
 data = []
-reward_buf = deque(maxlen=100)
-start_idx = 33
+#reward_buf = deque(maxlen=100)
+start_idx = 1
 for algo in algos:
     print(algo+'...')
-    for n_test in range(start_idx, 56):
+    for n_test in range(start_idx, 26):
         test_case_n = str(n_test).zfill(3)
-        test_data_name = logdir + test_case_n + '(general)' + '-' + algo
+        test_data_name = logdir + env_name + test_case_n + '-' + algo
         training_data = torch.load(test_data_name)
         n_steps = len(training_data)
-        for step in range(n_steps):
-            # mse = (training_data[step]['Team1-Ep.Reward'] - nash_val[n_test-start_idx][0])**2
-            # mse += (training_data[step]['Team2-Ep.Reward'] - nash_val[n_test-start_idx][1])**2
-            # mse = mse / 2.0
-            reward_buf.append((training_data[step]['Team1-Ep.Reward'] - nash_val[n_test-start_idx][0])**2)
-            reward_buf.append((training_data[step]['Team2-Ep.Reward'] - nash_val[n_test-start_idx][1])**2)
-            mse = np.mean(reward_buf, axis=0)
+        for info in training_data:
+            mse = (info['Team1-Ep.Reward'] - nash_val[n_test-start_idx][0])**2
+            mse += (info['Team2-Ep.Reward'] - nash_val[n_test-start_idx][1])**2
+            mse = mse / 2.0
+            step = info['Step']
+            # reward_buf.append((training_data[step]['Team1-Ep.Reward'] - nash_val[n_test-start_idx][0])**2)
+            # reward_buf.append((training_data[step]['Team2-Ep.Reward'] - nash_val[n_test-start_idx][1])**2)
+            # mse = np.mean(reward_buf, axis=0)
             data.append([step, mse, algo, n_test])
 
 print('sampling...')
@@ -110,7 +146,7 @@ print('sampling...')
 
 df = pd.DataFrame(data, columns=["step", "reward", "algorithm", "run"])
 # 降采樣 (每 100 個 step 取 1 個)
-df_sampled = df[df["step"] % 100 == 0].copy() 
+df_sampled = df[df["step"] % 1024 == 0].copy() 
 
 print('smooth...')
 # 平滑處理
@@ -121,7 +157,7 @@ df_sampled.loc[:, "reward_smooth"] = df_sampled.groupby("algorithm")["reward"].t
 print('plot...')
 # 繪製多條曲線
 plt.figure(figsize=(8, 5))
-sns.lineplot(data=df_sampled, x="step", y="reward_smooth", hue="algorithm", errorbar="sd")  # 每個演算法不同顏色
+sns.lineplot(data=df_sampled, x="step", y="reward", hue="algorithm", errorbar="sd")  # 每個演算法不同顏色
 plt.xlabel("Training Steps")
 plt.ylabel("MSE of Nash Equilibrium Expected Payoff")
 plt.legend(title="Algorithm")
