@@ -39,9 +39,9 @@ def train(env_name, training_num, w=0.5):
     if 'GMP' in env_name:
         env = GMP(w=w)
         config['gmp_w'] = str(w)
-    elif env_name == 'ZeroSum':
+    elif 'ZeroSum' in env_name:
         env = TwoTeamZeroSumSymmetricStochasticEnv(n_states=1, n_agents=4, n_actions=2)
-    elif env_name == 'GeneralSum':
+    elif 'GeneralSum' in env_name:
         env = TwoTeamSymmetricStochasticEnv(n_states=1, n_agents=4, n_actions=2)
 
     config['n_states'] = env.n_states
