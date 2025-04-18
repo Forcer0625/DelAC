@@ -2,6 +2,7 @@ from qmix import *
 from iql import IQL, NashQ
 from ia2c import IA2C
 from ca2c import CA2C, CFAC
+from ffq import FFQ
 import torch
 from envs import *
 from multi_env import make_env
@@ -54,20 +55,26 @@ def train(env_name, training_num, w=0.5):
     if not valid:
         return False
     
+    config['logdir'] = config['logdir'].replace('nash', 'ffq(foe)')
+    ffq = FFQ(env, config, 'foe')
+    ffq.learn(total_steps)
+    if 'GeneralSum' in env_name:
+        config['logdir'] = config['logdir'].replace('foe', 'friend')
+        ffq = FFQ(env, config, 'friend')
+        ffq.learn(total_steps)
+    exit()
+    
     config['logdir'] = config['logdir'].replace('nash', 'dynamic-nashq')
     nashq = NashQ(env, config)
     nashq.learn(total_steps)
-    infos.append(nashq.extract_q())
 
     config['logdir'] = config['logdir'].replace('dynamic-nashq', 'iql')
     iql = IQL(env, config)
     iql.learn(total_steps)
-    infos.append(iql.extract_q())
 
     config['logdir'] = config['logdir'].replace('iql', 'nwqmix')
     nwqix = NWQMix(env, config)
     nwqix.learn(total_steps)
-    infos.append(nwqix.extract_q())
 
     config.update(ac_config)
     config['logdir'] = config['logdir'].replace('nwqmix', 'ia2c')
@@ -122,7 +129,7 @@ def train(env_name, training_num, w=0.5):
 
 if __name__ == '__main__':
     env_name = 'GMP(w=0.5)'
-    for i in range(30):
+    for i in range(1,30):
         print(str(i+1).zfill(3)+':training...'+env_name)
         valid = train(env_name, i+1, 0.5)
         if not valid:
