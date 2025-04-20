@@ -7,7 +7,12 @@ import torch
 from envs import *
 from multi_env import make_env
 
-def train(env_name, training_num, w=0.5):
+runs_data_path = 'C:/Users/yhes9/old_runs/'
+run_case = '250329-YF_GeneralSum'
+run_env = run_case[7:]
+nash_file_postfix = '-nash/data.csv'
+    
+def train(env_name, training_num, w=0.5, path=None):
     total_steps = int(5e4)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     config = {
@@ -18,7 +23,7 @@ def train(env_name, training_num, w=0.5):
         'gamma':0.99,
         'lr': 3e-4,
         'tau':100, # more is harder
-        'batch_size':1024,
+        'batch_size':128,
         'memory_size':4096,
         'device':device,
         'nash-dynamic':True,
@@ -45,15 +50,19 @@ def train(env_name, training_num, w=0.5):
     elif 'GeneralSum' in env_name:
         env = TwoTeamSymmetricStochasticEnv(n_states=1, n_agents=4, n_actions=2)
 
+    if path is not None and 'GMP' not in env_name:
+        csv_file_name = runs_data_path+run_case+'/'+run_env+str(training_num).zfill(3)+nash_file_postfix
+        env = env.from_csv(csv_file_name)
+
     config['n_states'] = env.n_states
     config['n_agents'] = env.n_agents
     config['n_actions'] = env.n_actions
     print(config)
 
-    infos = []
-    valid = env.save(infos, config)
-    if not valid:
-        return False
+    # infos = []
+    # valid = env.save(infos, config)
+    # if not valid:
+    #     return False
     
     config['logdir'] = config['logdir'].replace('nash', 'ffq(foe)')
     ffq = FFQ(env, config, 'foe')
@@ -62,7 +71,7 @@ def train(env_name, training_num, w=0.5):
         config['logdir'] = config['logdir'].replace('foe', 'friend')
         ffq = FFQ(env, config, 'friend')
         ffq.learn(total_steps)
-    exit()
+    return True
     
     config['logdir'] = config['logdir'].replace('nash', 'dynamic-nashq')
     nashq = NashQ(env, config)
@@ -128,9 +137,11 @@ def train(env_name, training_num, w=0.5):
     return True
 
 if __name__ == '__main__':
-    env_name = 'GMP(w=0.5)'
-    for i in range(1,30):
+    env_name = 'YF_GeneralSum'
+    run_case = '250329-YF_GeneralSum'
+    run_env = run_case[7:]
+    for i in range(10):
         print(str(i+1).zfill(3)+':training...'+env_name)
-        valid = train(env_name, i+1, 0.5)
+        valid = train(env_name, i+1, 0.5, True)
         if not valid:
             i = i - 1

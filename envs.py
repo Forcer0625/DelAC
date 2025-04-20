@@ -84,7 +84,7 @@ class NormalFormGame(StochasticGame):
             assert payoff_matrix.shape[ 0] == n_actions
             assert payoff_matrix.shape[-1] == n_agents
             payoff_matrix = np.expand_dims(payoff_matrix, axis=0)
-        state_transmition = None if payoff_matrix is None else np.ones(1, 1)
+        state_transmition = None if payoff_matrix is None else np.ones((1, 1))
         terminal_state = None if payoff_matrix is None else [0]
         super().__init__(n_states=1, n_agents=n_agents, n_actions=n_actions,\
                          payoff_matrix=payoff_matrix, state_transmition=state_transmition,\
@@ -169,6 +169,59 @@ class TwoTeamZeroSumSymmetricStochasticEnv(StochasticGame):
             self.payoff_matrix = payoff_matrix
             self.state_transmition = state_transmition
             self.terminal_state = terminal_state
+
+    def read_matrix(self, file_name) -> np.ndarray:
+        payoff_matrix = np.zeros((2, 2, 2, 2, 4), dtype=int)
+
+        with open(file_name, 'r') as f:
+            lines = [line.strip() for line in f if line.strip()]
+
+        p4 = None
+        p3 = None
+        i = 0
+
+        while i < len(lines):
+            line = lines[i]
+
+            # Player 4 header
+            if line.startswith("Player 4:"):
+                p4 = int(line.split(":")[1].strip())
+                i += 1
+                continue
+
+            # Player 3 和 Player 2 header
+            if line.startswith("Player 3:"):
+                parts = line.split(",")
+                p3 = int(parts[0][-1])
+                p2_0 = int(parts[1][-1])
+                p2_1 = int(parts[2][-1])
+                p2_headers = [p2_0, p2_1]
+                i += 1
+
+                # Player 1 的兩行
+                for p1 in range(2):
+                    line_data = lines[i][12:].split("\",\"")
+                    # if len(line_data) < 3:
+                    #     i += 1
+                    #     continue
+                    payoff0, payoff1 = line_data
+                    payoff0, payoff1 = payoff0[1:], payoff1[:-1]
+                    for p2, payoff_str in zip(p2_headers, [payoff0, payoff1]):
+                        payoff = list(map(int, payoff_str.split(",")))
+                        payoff_matrix[p1, p2, p3, p4] = payoff
+                    i += 1
+                continue
+
+            i += 1
+
+        return payoff_matrix
+    
+    def from_csv(self, file_name) -> StochasticGame:
+        payoff_matrix = np.zeros((1,2,2,2,2,4))
+        payoff_matrix[0] = self.read_matrix(file_name)
+
+        return TwoTeamZeroSumSymmetricStochasticEnv(n_states=self.n_states, n_agents=self.n_agents, n_actions=self.n_actions,
+                                             payoff_matrix=payoff_matrix, state_transmition=np.ones((1, 1)), terminal_state=[0])
 
     def generate_random_game(self) -> np.ndarray:
         shape = [2 for _ in range(self.n_players)]
@@ -307,6 +360,13 @@ class TwoTeamSymmetricStochasticEnv(TwoTeamZeroSumSymmetricStochasticEnv):
             self.payoff_matrix = payoff_matrix
             self.state_transmition = state_transmition
             self.terminal_state = terminal_state
+        
+    def from_csv(self, file_name) -> StochasticGame:
+        payoff_matrix = np.zeros((1,2,2,2,2,4))
+        payoff_matrix[0] = self.read_matrix(file_name)
+
+        return TwoTeamSymmetricStochasticEnv(n_states=self.n_states, n_agents=self.n_agents, n_actions=self.n_actions,
+                                             payoff_matrix=payoff_matrix, state_transmition=np.ones((1, 1)), terminal_state=[0])
 
     def generate_random_game(self) -> np.ndarray:
         shape = [2 for _ in range(self.n_players)]
