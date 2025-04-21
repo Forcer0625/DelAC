@@ -131,7 +131,7 @@ class FFQ(IQL):
             q_values = self.policy[i](observations[:, i]).reshape(-1, self.n_actions)
 
             # gather current Q
-            q_a = q_values.gather(1, actions[:, i].unsqueeze(1)).squeeze(1)
+            q_a = q_values.gather(1, actions[:, 0 if i==0 else -1].unsqueeze(1)).squeeze(1)
 
             # 下一狀態的雙人 Q 值 (agent_i 對 opponent)
             with torch.no_grad():
@@ -143,7 +143,7 @@ class FFQ(IQL):
                 q_joint = q_next_agent.unsqueeze(2) + q_next_opponent.unsqueeze(1)  # shape: (batch, a_i, a_j)
                 v_next = self.solve_minmax(q_joint)
 
-            target = rewards[:, i] + self.gamma * (1 - dones) * v_next
+            target = rewards[:, 0 if i==0 else -1] + self.gamma *  v_next# * (1 - dones)
             loss = self.loss(q_a, target.detach())
 
             self.optimizer[i].zero_grad()
@@ -154,46 +154,104 @@ class FFQ(IQL):
 
         return total_loss / self.n_agents
 
-    def solve_minmax(self, Q_values, mode="foe"):
+    def solve_minmax(self, Q_values):
         """
         Q_values: tensor of shape (batch_size, n_actions, n_opponent_actions)
-        mode: "friend" (argmax) or "foe" (minimax)
         returns: tensor of shape (batch_size,) — the state value estimate
         """
-        try:
+        if self.friend_or_foe == "friend":
+            # 假設對手是合作的，對 a_j 平均（也可使用特定策略分佈）
+            v, _ = Q_values.max(dim=2)   # shape: [batch, a_i]
+            v, _ = v.max(dim=1)          # shape: [batch]
+            return v
+        
+        elif self.friend_or_foe == "foe":
+            batch_size, a_i, a_j = Q_values.shape
+
+            # ✅ Use closed-form if 2x2
+            if a_i == 2 and a_j == 2:
+                q11 = Q_values[:, 0, 0]
+                q12 = Q_values[:, 0, 1]
+                q21 = Q_values[:, 1, 0]
+                q22 = Q_values[:, 1, 1]
+
+                denom = q11 - q12 - q21 + q22
+                numer = q22 - q21
+
+                p = torch.zeros_like(denom)
+                valid = denom != 0
+
+                p[valid] = numer[valid] / denom[valid]
+                p = torch.clamp(p, 0.0, 1.0)
+
+                v1 = p * q11 + (1 - p) * q21
+                v2 = p * q12 + (1 - p) * q22
+                v = torch.min(v1, v2)
+                return v
+
+            # 🧠 fallback to LP solver
             v_values = []
-
-            for b in range(self.batch_size):
+            for b in range(batch_size):
                 q = Q_values[b].detach().cpu().numpy()
+                c = np.zeros(a_i + 1)
+                c[-1] = -1
 
-                if mode == "friend":
-                    # Friend: Max over agent's action
-                    v = np.max(np.sum(q, axis=1))  # sum over opponent to get expected
-                else:
-                    # Foe: Minimax: max_pi min_opponent ∑ Q(s, a_i, a_j)
-                    c = np.zeros(self.n_actions + 1)
-                    c[-1] = -1  # max v → min -v
+                A = []
+                b_ub = []
+                for j in range(a_j):
+                    row = [-q[i][j] for i in range(a_i)]
+                    row.append(1.0)
+                    A.append(row)
+                    b_ub.append(0)
 
-                    A = []
-                    b_ub = []
-                    for j in range(q.shape[1]):  # for each opponent action
-                        row = [-q[i][j] for i in range(self.n_actions)]
-                        row.append(1.0)  # for v
-                        A.append(row)
-                        b_ub.append(0)
+                A_eq = [[1.0]*a_i + [0.0]]
+                b_eq = [1.0]
+                bounds = [(0, 1)] * a_i + [(None, None)]
 
-                    A_eq = [[1.0]*self.n_actions + [0.0]]
-                    b_eq = [1.0]
-                    bounds = [(0, 1)] * self.n_actions + [(None, None)]
-
-                    res = linprog(c, A_ub=A, b_ub=b_ub, A_eq=A_eq, b_eq=b_eq, bounds=bounds, method='highs')
-                    if not res.success:
-                        raise ValueError("Linear program failed to solve minimax.")
-
-                    v = res.x[-1]
-
-                v_values.append(v)
+                try:
+                    res = linprog(c, A_ub=A, b_ub=b_ub,
+                                A_eq=A_eq, b_eq=b_eq, bounds=bounds,
+                                method='highs-ds')
+                    if res.success:
+                        v_values.append(res.x[-1])
+                    else:
+                        print(f"[WARNING] linprog failed at batch {b}")
+                        v_values.append(0.0)
+                except Exception as e:
+                    print(f"[ERROR] linprog exception: {e}")
+                    v_values.append(0.0)
 
             return torch.tensor(v_values, dtype=torch.float32, device=self.device)
-        except:
-            return torch.zeros(Q_values.shape[0], device=self.device)
+        # try:
+        #     v_values = []
+
+        #     for b in range(self.batch_size):
+        #         q = Q_values[b].detach().cpu().numpy()
+
+        #         # Foe: Minimax: max_pi min_opponent ∑ Q(s, a_i, a_j)
+        #         c = np.zeros(self.n_actions + 1)
+        #         c[-1] = -1  # max v → min -v
+
+        #         A = []
+        #         b_ub = []
+        #         for j in range(q.shape[1]):  # for each opponent action
+        #             row = [-q[i][j] for i in range(self.n_actions)]
+        #             row.append(1.0)  # for v
+        #             A.append(row)
+        #             b_ub.append(0)
+
+        #         A_eq = [[1.0]*self.n_actions + [0.0]]
+        #         b_eq = [1.0]
+        #         bounds = [(0, 1)] * self.n_actions + [(None, None)]
+
+        #         res = linprog(c, A_ub=A, b_ub=b_ub, A_eq=A_eq, b_eq=b_eq, bounds=bounds, method='highs')
+        #         if not res.success:
+        #             raise ValueError("Linear program failed to solve minimax.")
+
+        #         v = res.x[-1]
+
+        #         v_values.append(v)
+
+        #     return torch.tensor(v_values, dtype=torch.float32, device=self.device)
+        # except:
+        #     return torch.zeros(Q_values.shape[0], device=self.device)

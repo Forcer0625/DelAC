@@ -243,7 +243,7 @@ nash_val['YF_GeneralSum'] = [
     [4.094,4.607], #30
 ]
 
-algos = ['cfac', 'ia2c', 'ca2c', 'iql', 'dynamic-nashq', 'nwqmix']
+algos = ['cfac', 'ia2c', 'ca2c', 'iql', 'dynamic-nashq', 'nwqmix','ffq(friend)']
 env_name = 'GeneralSum'
 data = []
 #reward_buf = deque(maxlen=100)
