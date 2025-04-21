@@ -166,47 +166,43 @@ class FFQ(IQL):
             return v
         
         elif self.friend_or_foe == "foe":
-            batch_size, a_i, a_j = Q_values.shape
-
             # ✅ Use closed-form if 2x2
-            if a_i == 2 and a_j == 2:
-                q11 = Q_values[:, 0, 0]
-                q12 = Q_values[:, 0, 1]
-                q21 = Q_values[:, 1, 0]
-                q22 = Q_values[:, 1, 1]
+            if self.n_actions == 2:
+                a = Q_values[:, 0, 0]
+                b = Q_values[:, 0, 1]
+                c = Q_values[:, 1, 0]
+                d = Q_values[:, 1, 1]
 
-                denom = q11 - q12 - q21 + q22
-                numer = q22 - q21
+                denom = a - b - c + d
+                v = torch.zeros_like(denom)
 
-                p = torch.zeros_like(denom)
-                valid = denom != 0
+                valid = ~torch.isclose(denom, v, atol=1e-3)#denom != 0
+                v[valid] = (a[valid] * d[valid] - b[valid] * c[valid]) / denom[valid]
 
-                p[valid] = numer[valid] / denom[valid]
-                p = torch.clamp(p, 0.0, 1.0)
+                # 🛡️ fallback: min-max (worst-case opponent)
+                fallback = Q_values.max(dim=1).values.min(dim=1).values
+                v[~valid] = fallback[~valid]
 
-                v1 = p * q11 + (1 - p) * q21
-                v2 = p * q12 + (1 - p) * q22
-                v = torch.min(v1, v2)
                 return v
 
             # 🧠 fallback to LP solver
             v_values = []
-            for b in range(batch_size):
+            for b in range(self.batch_size):
                 q = Q_values[b].detach().cpu().numpy()
-                c = np.zeros(a_i + 1)
+                c = np.zeros(self.n_actions + 1)
                 c[-1] = -1
 
                 A = []
                 b_ub = []
-                for j in range(a_j):
-                    row = [-q[i][j] for i in range(a_i)]
+                for j in range(self.n_actions):
+                    row = [-q[i][j] for i in range(self.n_actions)]
                     row.append(1.0)
                     A.append(row)
                     b_ub.append(0)
 
-                A_eq = [[1.0]*a_i + [0.0]]
+                A_eq = [[1.0]*self.n_actions + [0.0]]
                 b_eq = [1.0]
-                bounds = [(0, 1)] * a_i + [(None, None)]
+                bounds = [(0, 1)] * self.n_actions + [(None, None)]
 
                 try:
                     res = linprog(c, A_ub=A, b_ub=b_ub,
