@@ -378,6 +378,8 @@ class DynamicSolver():
         return dynamic_payoff_matrix
 
     def values(self, state):
+        if self.dynamic and not self.saving:
+            self(state)
         return np.squeeze(self.static_values[state]) # (n_batches, n_agents)
 
     def from_arrays2gbt(payoff_matrix:np.ndarray):
