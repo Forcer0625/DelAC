@@ -3,6 +3,8 @@ from iql import IQL, NashQ
 from ia2c import IA2C
 from ca2c import CA2C, CFAC
 from ffq import FFQ
+from ippo import IPPO
+from mappo import MAPPO
 import torch
 from envs import *
 from multi_env import make_env
@@ -37,7 +39,12 @@ def train(env_name, training_num, w=0.5, path=None):
         'ent_coef':0.0,
         'n_env':4,
         'batch_size':256,
-        "grad_norm":0.5,
+        'grad_norm':0.5,
+    }
+    ppo_config = {
+        'clip_param':0.2,
+        'epochs':4,
+        'sample_mb_size':ac_config['batch_size']*ac_config['n_env'],
     }
     ac_config['print_every'] = 5120 + 1
     config['logdir'] = env_name + str(training_num).zfill(3) + '-nash'
@@ -63,6 +70,38 @@ def train(env_name, training_num, w=0.5, path=None):
     # valid = env.save(infos, config)
     # if not valid:
     #     return False
+
+    config.update(ac_config)
+    config.update(ppo_config)
+    config['logdir'] = config['logdir'].replace('nash', 'ippo')
+    envs = MultiEnv([make_env(i, deepcopy(env), config) for i in range(config['n_env'])])
+    runner = PPORunner(envs, config)
+    ippo = IPPO(runner, config)
+    ippo.learn(total_steps)
+    with torch.no_grad():
+        obs = torch.as_tensor([0]).float().to(config['device'])
+        team_1_a_porbs = ippo.actor_critic[ 0].actor.model(obs)
+        team_2_a_porbs = ippo.actor_critic[-1].actor.model(obs)
+    ippo.config['team 1 strategy'] = [str(i) for i in list(team_1_a_porbs.cpu().numpy())]
+    ippo.config['team 2 strategy'] = [str(i) for i in list(team_2_a_porbs.cpu().numpy())]
+    ippo.save_config()
+    envs.close()
+    
+    config['logdir'] = config['logdir'].replace('ippo', 'mappo')
+    envs = MultiEnv([make_env(i, deepcopy(env), config) for i in range(config['n_env'])])
+    runner = CentralisedPPORunner(envs, config)
+    mappo = MAPPO(runner, config)
+    mappo.learn(total_steps)
+    with torch.no_grad():
+        obs = torch.as_tensor([0]).float().to(config['device'])
+        team_1_a_porbs = mappo.actors[ 0].model(obs)
+        team_2_a_porbs = mappo.actors[-1].model(obs)
+    mappo.config['team 1 strategy'] = [str(i) for i in list(team_1_a_porbs.cpu().numpy())]
+    mappo.config['team 2 strategy'] = [str(i) for i in list(team_2_a_porbs.cpu().numpy())]
+    mappo.save_config()
+    envs.close()
+
+    return True
     
     config['logdir'] = config['logdir'].replace('nash', 'ffq(foe)')
     ffq = FFQ(env, config, 'foe')
@@ -71,7 +110,6 @@ def train(env_name, training_num, w=0.5, path=None):
         config['logdir'] = config['logdir'].replace('foe', 'friend')
         ffq = FFQ(env, config, 'friend')
         ffq.learn(total_steps)
-    return True
     
     config['logdir'] = config['logdir'].replace('nash', 'dynamic-nashq')
     nashq = NashQ(env, config)
@@ -140,7 +178,7 @@ if __name__ == '__main__':
     env_name = 'YF_GeneralSum'
     run_case = '250329-YF_GeneralSum'
     run_env = run_case[7:]
-    for i in range(10):
+    for i in range(30):
         print(str(i+1).zfill(3)+':training...'+env_name)
         valid = train(env_name, i+1, 0.5, True)
         if not valid:
