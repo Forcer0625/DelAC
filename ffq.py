@@ -68,23 +68,24 @@ class FFQ(IQL):
             return v
         
         elif self.friend_or_foe == "foe":
-            # ✅ Closed-form minimax for 2x2
-            a = Q_values[:, 0, 0]
-            b = Q_values[:, 0, 1]
-            c = Q_values[:, 1, 0]
-            d = Q_values[:, 1, 1]
+            # ✅ Use closed-form if 2x2
+            if self.n_actions == 2:
+                a = Q_values[:, 0, 0]
+                b = Q_values[:, 0, 1]
+                c = Q_values[:, 1, 0]
+                d = Q_values[:, 1, 1]
 
-            denom = a - b - c + d
-            v = torch.zeros_like(denom)
+                denom = a - b - c + d
+                v = torch.zeros_like(denom)
 
-            valid = ~torch.isclose(denom, v, atol=1e-3)#denom != 0
-            v[valid] = (a[valid] * d[valid] - b[valid] * c[valid]) / denom[valid]
+                valid = ~torch.isclose(denom, v, atol=1e-3)#denom != 0
+                v[valid] = (a[valid] * d[valid] - b[valid] * c[valid]) / denom[valid]
 
-            # 🛡️ fallback: min-max (worst-case opponent)
-            fallback = Q_values.max(dim=1).values.min(dim=1).values
-            v[~valid] = fallback[~valid]
+                # 🛡️ fallback: min-max (worst-case opponent)
+                fallback = Q_values.max(dim=1).values.min(dim=1).values
+                v[~valid] = fallback[~valid]
 
-            return v
+                return v
 
             # 🧠 fallback to LP solver
             v_values = []
