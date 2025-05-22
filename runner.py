@@ -74,21 +74,12 @@ class NashQRunner(EGreedyRunner):
     def __init__(self, env, policy, replay_buffer, eps_start, eps_end, eps_dec):
         super().__init__(env, policy, replay_buffer, eps_start, eps_end, eps_dec)
 
-    def run(self, step, slover):
+    def run(self, step, solver):
         obs, infos = self.env.reset()
         truncation = termination = False
         total_reward = np.zeros(self.n_agents)
         while (not truncation) and (not termination):
-            actions = []
-            for i in range(self.env.n_agents):
-                if random.random() < self.epsilon:        
-                    action = random.sample(range(self.n_actions), 1)[0]
-                else:
-                    "use slover to get best response"
-                    strategy = slover(obs[i])
-                    strategy = strategy[i]
-                    action = np.random.choice([i for i in range(self.n_actions)], size=1, p=strategy)[0]
-                actions.append(action)
+            actions = self.action_selector(obs, solver)
 
             obs_, reward, termination, truncation, infos = self.env.step(actions)
             total_reward += reward
@@ -100,6 +91,19 @@ class NashQRunner(EGreedyRunner):
             self.update_epsilon(step)
             
         return total_reward, step
+    
+    def action_selector(self, obs, solver):
+        actions = []
+        for i in range(self.env.n_agents):
+            if random.random() < self.epsilon:        
+                action = random.sample(range(self.n_actions), 1)[0]
+            else:
+                "use slover to get best response"
+                strategy = solver(obs[i])
+                strategy = strategy[i]
+                action = np.random.choice([i for i in range(self.n_actions)], size=1, p=strategy)[0]
+            actions.append(action)
+        return actions
     
 class OnPolicyRunner():
     def __init__(self, env:MultiEnv, config:dict):
@@ -378,3 +382,19 @@ class CentralisedPPORunner(PPORunner):
                 self.mb_values.reshape(self.n_agents, -1), \
                 mb_returns.reshape(self.n_agents, -1),\
                 episodes
+    
+class CEQRunner(NashQRunner):
+    def action_selector(self, obs, solver):
+        if random.random() < self.epsilon:        
+                joint_action = random.sample(range(self.n_actions**self.n_agents), 1)[0]
+        else:
+            "use slover to get best response"
+            strategy = solver(obs[0]) # joint action distribution
+            joint_action = np.random.choice([i for i in range(self.n_actions**self.n_agents)], size=1, p=strategy)[0]
+        actions = []
+        for i in range(self.n_agents):
+            i_action = joint_action//pow(self.n_actions, self.n_agents-i-1)
+            joint_action -= (i_action*pow(self.n_actions, self.n_agents-i-1))
+            actions.append(i_action)
+        actions.reverse()
+        return actions
