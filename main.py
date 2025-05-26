@@ -5,6 +5,7 @@ from ca2c import CA2C, CFAC
 from ffq import FFQ
 from ippo import IPPO
 from mappo import MAPPO
+from ceq import CEQ
 import torch
 from envs import *
 from multi_env import make_env
@@ -71,6 +72,11 @@ def train(env_name, training_num, w=0.5, path=None):
     # if not valid:
     #     return False
 
+    config['logdir'] = config['logdir'].replace('nash', 'ceq')
+    ceq = CEQ(env, config)
+    ceq.learn(total_steps)
+    
+    return True
     config.update(ac_config)
     config.update(ppo_config)
     config['logdir'] = config['logdir'].replace('nash', 'ippo')
