@@ -8,7 +8,7 @@ from judger import NashEquilibriumJudger
 from torch.utils.tensorboard import SummaryWriter
 
 class StochasticGame():
-    def __init__(self, n_states:int, n_agents:int, n_actions:int, payoff_matrix:np.ndarray = None, state_transmition:np.ndarray = None, terminal_state:list = None, seed=None):
+    def __init__(self, n_states:int, n_agents:int, n_actions:int, payoff_matrix:np.ndarray = None, state_transmition:np.ndarray = None, terminal_state:list = None, seed=None, noise=None):
         """
             Payoff Matrix Format: (n_states, n_actions,...,n_actions, n_agents)
             first axis represents the stochastic games has n_states
@@ -17,6 +17,7 @@ class StochasticGame():
             State Transmition Function T: (n_states, n_states)
             probability only depends on state, and last axis is the probability, which means sum(T[s]) is 1.0 for any s in states
         """
+        self.noise = noise
         self.low = 0
         self.high = 10
         self.max_step = 100
@@ -52,6 +53,8 @@ class StochasticGame():
 
         # 1. get payoff
         joint_rewards = self.payoff_matrix[self.state][tuple(joint_actions)]
+        if self.noise is not None:
+            joint_rewards = joint_rewards + self.noise.sample(size=self.n_agents)
 
         # 2. state transmition
         self.state = np.random.choice([i for i in range(self.n_states)], size=1, p=self.state_transmition[self.state])[0]
@@ -132,7 +135,7 @@ class TwoTeamZeroSumSymmetricEnv(NormalFormGame):
         return np.array([team1_payoffs, team2_payoffs])
 
 class TwoTeamZeroSumSymmetricStochasticEnv(StochasticGame):
-    def __init__(self, n_states:int, n_agents:int, n_actions:int, payoff_matrix:np.ndarray = None, state_transmition:np.ndarray = None, terminal_state:list = None, seed=None):
+    def __init__(self, n_states:int, n_agents:int, n_actions:int, payoff_matrix:np.ndarray = None, state_transmition:np.ndarray = None, terminal_state:list = None, seed=None, noise=None):
         """
             Payoff Matrix Format: (n_states, n_actions,...,n_actions, n_agents)
             first axis represents the stochastic games has n_states
@@ -141,6 +144,7 @@ class TwoTeamZeroSumSymmetricStochasticEnv(StochasticGame):
             State Transmition Function T: (n_states, n_states)
             probability only depends on state, and last axis is the probability, which means sum(T[s]) is 1.0 for any s in states
         """
+        self.noise = noise
         self.low = -10
         self.high = 10
         self.max_step = 100
@@ -322,7 +326,7 @@ class TwoTeamZeroSumSymmetricStochasticEnv(StochasticGame):
         return game
                 
 class TwoTeamSymmetricStochasticEnv(TwoTeamZeroSumSymmetricStochasticEnv):
-    def __init__(self, n_states:int, n_agents:int, n_actions:int, payoff_matrix:np.ndarray = None, state_transmition:np.ndarray = None, terminal_state:list = None, seed=None):
+    def __init__(self, n_states:int, n_agents:int, n_actions:int, payoff_matrix:np.ndarray = None, state_transmition:np.ndarray = None, terminal_state:list = None, seed=None, noise=None):
         """
             Payoff Matrix Format: (n_states, n_actions,...,n_actions, n_agents)
             first axis represents the stochastic games has n_states
@@ -331,6 +335,7 @@ class TwoTeamSymmetricStochasticEnv(TwoTeamZeroSumSymmetricStochasticEnv):
             State Transmition Function T: (n_states, n_states)
             probability only depends on state, and last axis is the probability, which means sum(T[s]) is 1.0 for any s in states
         """
+        self.noise = noise
         self.low  =  0
         self.high = 10
         self.max_step = 100

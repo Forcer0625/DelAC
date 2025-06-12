@@ -243,27 +243,34 @@ nash_val['YF_GeneralSum'] = [
     [4.094,4.607], #30
 ]
 
-algos = ['cfac', 'ia2c', 'ca2c', 'iql', 'dynamic-nashq', 'nwqmix','ffq(friend)']
-env_name = 'GeneralSum'
+algos = ['cfac', 'ia2c', 'ippo', 'ca2c', 'mappo', 'iql', 'dynamic-nashq', 'ffq(foe)', 'ffq(friend)', 'nwqmix'] # ceq
+env_name = 'YF_GeneralSum'
 data = []
 #reward_buf = deque(maxlen=100)
 start_idx = 1
 for algo in algos:
     print(algo+'...')
-    for n_test in range(start_idx, 31):
-        test_case_n = str(n_test).zfill(3)
-        test_data_name = logdir + env_name + test_case_n + '-' + algo
-        training_data = torch.load(test_data_name)
-        n_steps = len(training_data)
-        for info in training_data:
-            mse = (info['Team1-Ep.Reward'] - nash_val[env_name][n_test-start_idx][0])**2
-            mse += (info['Team2-Ep.Reward'] - nash_val[env_name][n_test-start_idx][1])**2
-            mse = mse / 2.0
-            step = info['Step']
-            # reward_buf.append((training_data[step]['Team1-Ep.Reward'] - nash_val[n_test-start_idx][0])**2)
-            # reward_buf.append((training_data[step]['Team2-Ep.Reward'] - nash_val[n_test-start_idx][1])**2)
-            # mse = np.mean(reward_buf, axis=0)
-            data.append([step, mse, algo.upper() if algo!='dynamic-nashq' else 'NashQ' , n_test])
+    try:
+        for n_test in range(start_idx, 31):
+            test_case_n = str(n_test).zfill(3)
+            test_data_name = logdir + env_name + test_case_n + '-' + algo
+            training_data = torch.load(test_data_name)
+            n_steps = len(training_data)
+            for info in training_data:
+                # mse = (info['Team1-Ep.Reward'] - nash_val[env_name][n_test-start_idx][0])**2
+                # mse += (info['Team2-Ep.Reward'] - nash_val[env_name][n_test-start_idx][1])**2
+                # mse = mse / 2.0
+                reward = info['Team1-Ep.Reward']
+                reward += info['Team2-Ep.Reward']
+                step = info['Step']
+                # reward_buf.append((training_data[step]['Team1-Ep.Reward'] - nash_val[n_test-start_idx][0])**2)
+                # reward_buf.append((training_data[step]['Team2-Ep.Reward'] - nash_val[n_test-start_idx][1])**2)
+                # mse = np.mean(reward_buf, axis=0)
+                if algo == 'cfac':
+                    data.append([step, reward, 'ECAC' , n_test])    
+                data.append([step, reward, algo.upper() if algo!='dynamic-nashq' else 'NashQ' , n_test])
+    except:
+        pass
 
 print('sampling...')
 # 模擬數據
@@ -289,12 +296,38 @@ print('smooth...')
 # )
 
 print('plot...')
+# 指定顏色
+algos = [
+    'CFAC', 'IA2C', 'IPPO', 'CA2C', 'MAPPO', 'IQL',
+    'NashQ', 'CEQ', 'FFQ(FOE)', 'FFQ(FRIEND)', 'NWQMIX'
+]
+# colors = sns.color_palette("tab20", n_colors=len(algos))
+# palette = dict(zip(algos, colors))
+palette = {
+    'CFAC': '#1f77b4',
+    'IA2C': '#ff7f0e',
+    'IPPO': '#2ca02c',
+    'CA2C': '#d62728',
+    'MAPPO': '#9467bd',
+    'IQL': '#8c564b',
+    'NashQ': '#e377c2',
+    'CEQ': '#7f7f7f',
+    'FFQ(FOE)': '#bcbd22',
+    'FFQ(FRIEND)': '#17becf',
+    'NWQMIX': '#aec7e8'
+}
+
 # 繪製多條曲線
 plt.figure(figsize=(8, 5))
-sns.lineplot(data=df_sampled, x="step", y="reward", hue="algorithm")#, errorbar="sd")  # 每個演算法不同顏色
+sns.lineplot(data=df_sampled, x="step", y="reward", palette=palette, hue="algorithm", legend=False)#, errorbar="sd")  # 每個演算法不同顏色
 plt.xlabel("Training Steps")
-plt.ylabel("MSE of Nash Equilibrium Expected Payoff")
-plt.legend(title="Algorithm")
+#plt.ylabel("MSE of Nash Equilibrium Expected Payoff")
+plt.ylabel("Sum of Total Payoff")
+# plt.legend(title="Algorithm")
+# plt.legend(bbox_to_anchor=(1.05, 1), loc='upper')
+# # 這行讓圖表本體縮進，給 legend 留空間
+# plt.tight_layout()
+# plt.subplots_adjust(top=0.75)  # <---- 關鍵
 plt.grid(True)
 
 plt.show()

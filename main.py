@@ -10,7 +10,7 @@ import torch
 from envs import *
 from multi_env import make_env
 
-runs_data_path = 'C:/Users/yhes9/old_runs/'
+runs_data_path = './runs/'
 run_case = '250329-YF_GeneralSum'
 run_env = run_case[7:]
 nash_file_postfix = '-nash/data.csv'
@@ -48,15 +48,24 @@ def train(env_name, training_num, w=0.5, path=None):
         'sample_mb_size':ac_config['batch_size']*ac_config['n_env'],
     }
     ac_config['print_every'] = 5120 + 1
-    config['logdir'] = env_name + str(training_num).zfill(3) + '-nash'
+    config['logdir'] = 'noise(0,1)-'+env_name + str(training_num).zfill(3) + '-nash'
     
+
+    class NoiseSampler():
+        def __init__(self, loc, scale):
+            self.loc = loc
+            self.scale = scale
+            
+        def sample(self, size=None):
+            return np.random.normal(self.loc, self.scale, size=size)
+
     if 'GMP' in env_name:
         env = GMP(w=w)
         config['gmp_w'] = str(w)
     elif 'ZeroSum' in env_name:
-        env = TwoTeamZeroSumSymmetricStochasticEnv(n_states=1, n_agents=4, n_actions=2)
+        env = TwoTeamZeroSumSymmetricStochasticEnv(n_states=1, n_agents=4, n_actions=2, noise=NoiseSampler(0.0, 1.0))
     elif 'GeneralSum' in env_name:
-        env = TwoTeamSymmetricStochasticEnv(n_states=1, n_agents=4, n_actions=2)
+        env = TwoTeamSymmetricStochasticEnv(n_states=1, n_agents=4, n_actions=2, noise=NoiseSampler(0.0, 1.0))
 
     if path is not None and 'GMP' not in env_name:
         csv_file_name = runs_data_path+run_case+'/'+run_env+str(training_num).zfill(3)+nash_file_postfix
@@ -72,43 +81,10 @@ def train(env_name, training_num, w=0.5, path=None):
     # if not valid:
     #     return False
 
-    config['logdir'] = config['logdir'].replace('nash', 'ceq')
-    ceq = CEQ(env, config)
-    ceq.learn(total_steps)
-    
-    return True
-    config.update(ac_config)
-    config.update(ppo_config)
-    config['logdir'] = config['logdir'].replace('nash', 'ippo')
-    envs = MultiEnv([make_env(i, deepcopy(env), config) for i in range(config['n_env'])])
-    runner = PPORunner(envs, config)
-    ippo = IPPO(runner, config)
-    ippo.learn(total_steps)
-    with torch.no_grad():
-        obs = torch.as_tensor([0]).float().to(config['device'])
-        team_1_a_porbs = ippo.actor_critic[ 0].actor.model(obs)
-        team_2_a_porbs = ippo.actor_critic[-1].actor.model(obs)
-    ippo.config['team 1 strategy'] = [str(i) for i in list(team_1_a_porbs.cpu().numpy())]
-    ippo.config['team 2 strategy'] = [str(i) for i in list(team_2_a_porbs.cpu().numpy())]
-    ippo.save_config()
-    envs.close()
-    
-    config['logdir'] = config['logdir'].replace('ippo', 'mappo')
-    envs = MultiEnv([make_env(i, deepcopy(env), config) for i in range(config['n_env'])])
-    runner = CentralisedPPORunner(envs, config)
-    mappo = MAPPO(runner, config)
-    mappo.learn(total_steps)
-    with torch.no_grad():
-        obs = torch.as_tensor([0]).float().to(config['device'])
-        team_1_a_porbs = mappo.actors[ 0].model(obs)
-        team_2_a_porbs = mappo.actors[-1].model(obs)
-    mappo.config['team 1 strategy'] = [str(i) for i in list(team_1_a_porbs.cpu().numpy())]
-    mappo.config['team 2 strategy'] = [str(i) for i in list(team_2_a_porbs.cpu().numpy())]
-    mappo.save_config()
-    envs.close()
-
-    return True
-    
+    # config['logdir'] = config['logdir'].replace('nash', 'ceq')
+    # ceq = CEQ(env, config)
+    # ceq.learn(total_steps)
+        
     config['logdir'] = config['logdir'].replace('nash', 'ffq(foe)')
     ffq = FFQ(env, config, 'foe')
     ffq.learn(total_steps)
@@ -116,8 +92,9 @@ def train(env_name, training_num, w=0.5, path=None):
         config['logdir'] = config['logdir'].replace('foe', 'friend')
         ffq = FFQ(env, config, 'friend')
         ffq.learn(total_steps)
+        config['logdir'] = config['logdir'].replace('friend', 'foe')
     
-    config['logdir'] = config['logdir'].replace('nash', 'dynamic-nashq')
+    config['logdir'] = config['logdir'].replace('ffq(foe)', 'dynamic-nashq')
     nashq = NashQ(env, config)
     nashq.learn(total_steps)
 
@@ -178,11 +155,49 @@ def train(env_name, training_num, w=0.5, path=None):
     cfac.save_config()
     envs.close()
 
+    config.update(ppo_config)
+    config['logdir'] = config['logdir'].replace('nash', 'ippo')
+    envs = MultiEnv([make_env(i, deepcopy(env), config) for i in range(config['n_env'])])
+    runner = PPORunner(envs, config)
+    ippo = IPPO(runner, config)
+    ippo.learn(total_steps)
+    with torch.no_grad():
+        obs = torch.as_tensor([0]).float().to(config['device'])
+        team_1_a_porbs = ippo.actor_critic[ 0].actor.model(obs)
+        team_2_a_porbs = ippo.actor_critic[-1].actor.model(obs)
+    ippo.config['team 1 strategy'] = [str(i) for i in list(team_1_a_porbs.cpu().numpy())]
+    ippo.config['team 2 strategy'] = [str(i) for i in list(team_2_a_porbs.cpu().numpy())]
+    ippo.save_config()
+    envs.close()
+    
+    config['logdir'] = config['logdir'].replace('ippo', 'mappo')
+    envs = MultiEnv([make_env(i, deepcopy(env), config) for i in range(config['n_env'])])
+    runner = CentralisedPPORunner(envs, config)
+    mappo = MAPPO(runner, config)
+    mappo.learn(total_steps)
+    with torch.no_grad():
+        obs = torch.as_tensor([0]).float().to(config['device'])
+        team_1_a_porbs = mappo.actors[ 0].model(obs)
+        team_2_a_porbs = mappo.actors[-1].model(obs)
+    mappo.config['team 1 strategy'] = [str(i) for i in list(team_1_a_porbs.cpu().numpy())]
+    mappo.config['team 2 strategy'] = [str(i) for i in list(team_2_a_porbs.cpu().numpy())]
+    mappo.save_config()
+    envs.close()
+
     return True
 
 if __name__ == '__main__':
     env_name = 'YF_GeneralSum'
     run_case = '250329-YF_GeneralSum'
+    run_env = run_case[7:]
+    for i in range(30):
+        print(str(i+1).zfill(3)+':training...'+env_name)
+        valid = train(env_name, i+1, 0.5, True)
+        if not valid:
+            i = i - 1
+
+    env_name = 'ZeroSum'
+    run_case = '250326-ZeroSum'
     run_env = run_case[7:]
     for i in range(30):
         print(str(i+1).zfill(3)+':training...'+env_name)

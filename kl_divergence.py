@@ -38,11 +38,11 @@ def calculate_kl_div(nash_strategy, json_strategy):
     return kl_div(nash_strategy, json_strategy).sum()
 
 if __name__ == '__main__':
-    runs_data_path = 'C:/Users/yhes9/old_runs/'
-    run_case = '250329-YF_GeneralSum'
+    runs_data_path = './runs/'
+    run_case = '250324-GMP(w=0.5)'
     run_env = run_case[7:]
     nash_file_postfix = '-nash/data.csv'
-    algos = ['cfac', 'ia2c', 'ca2c']
+    algos = ['ia2c', 'ippo', 'ca2c', 'mappo', 'cfac']
     
     datas = {}
     for algo_name in algos:
