@@ -67,7 +67,7 @@ class CA2C(IA2C):
                 total_pg_loss += pg_loss
             
             mb_actions = mb_actions.transpose()
-            mb_returns = mb_returns[self.n_agents//2-1:self.n_agents//2+1].transpose()
+            mb_returns = mb_returns[self.n_agents//2-1:self.n_agents//2].transpose()
             v_loss = self.update_critic(mb_obs[i], mb_actions, mb_returns)
 
             steps += self.batch_size
@@ -228,7 +228,7 @@ class CFAC(CA2C):
             runtime_iterations += 1
             
             mb_actions = mb_actions.transpose()
-            mb_returns = mb_returns[self.n_agents//2-1:self.n_agents//2+1].transpose()
+            mb_returns = mb_returns[self.n_agents//2-1:self.n_agents//2].transpose()
             v_loss = self.update_critic(mb_obs[0], mb_actions, mb_returns)
 
             total_pg_loss = entropy = 0.0
@@ -303,3 +303,133 @@ class CFAC(CA2C):
 
         return kl_loss.item(), ents.mean().item()
         
+class CFAC2(CFAC):
+    def get_policy(self):
+        self.v_loss = nn.MSELoss()
+
+        self.actors = []
+        self.actor_optim = []
+        self.critics= []
+        self.critic_optim = []
+        if self.parameter_sharing:
+            # team_1_policy = Actor(input_dim=self.input_dim, action_dim=self.action_dim).to(self.device)
+            # team_2_policy = Actor(input_dim=self.input_dim, action_dim=self.action_dim).to(self.device)
+            # team_1_optim = torch.optim.Adam(team_1_policy.parameters(), lr=self.lr)
+            # team_2_optim = torch.optim.Adam(team_2_policy.parameters(), lr=self.lr)
+            # for i in range(self.n_agents):
+            #     self.actors.append(team_1_policy if i < self.n_agents//2 else team_2_policy)
+            #     self.actor_optim.append(team_1_optim if i < self.n_agents//2 else team_2_optim)
+            pass
+        else:
+            for i in range(self.n_agents):
+                self.actors.append(Actor(input_dim=self.input_dim, action_dim=self.action_dim).to(self.device))
+                self.actor_optim.append(torch.optim.Adam(self.actors[i].parameters(), lr=self.lr))
+                self.critics.append(CentralisedCritic(input_dim=self.input_dim, action_dim=self.n_agents, value_dim=1, device=self.device))
+                self.critic_optim.append(torch.optim.Adam(self.critics[i].parameters(), lr=self.lr*100.0) )
+
+    def learn(self, total_steps):
+        self.save_config()
+        steps = 0
+        runtime_iterations = 0
+        total_episodes = 0
+        t_start = time.time()
+        
+        while steps < total_steps:
+            with torch.no_grad():
+                mb_obs, mb_actions, mb_values, mb_returns, episodes = self.runner.run(self.actors, self.critic)
+
+            steps +=  self.batch_size
+            total_episodes += episodes
+            runtime_iterations += 1
+            
+            mb_actions = mb_actions.transpose() # (n_agents, batch_size) -> (batch_size, n_agents)
+            mb_returns = mb_returns.transpose()
+            v_loss = 0
+            for i in range(self.n_agents):
+                v_loss += self.update_critic(mb_obs[0], mb_actions, mb_returns, i)
+            v_loss = v_loss / self.n_agents
+
+            # total_pg_loss = entropy = 0.0
+            # payoff_matrix = self.make_payoff_matrix()
+            # game = TwoTeamSymmetricGame(self.n_agents)
+            # game.set_payoff_matrix(payoff_matrix)
+            # strategy, _, _ = feasibility_run(game, self.n_agents)
+            # valid = True
+            # if np.any(strategy < 0.0):
+            #     valid = False
+            # else:
+            #     strategy = strategy.reshape((self.n_agents, self.action_dim))
+            #     for i in range(self.n_agents):
+            #         pg_loss, entropy = self.update_actor(mb_obs[i], strategy[i], i)
+            #         total_pg_loss += pg_loss
+
+            mean_return, std_return, mean_len = self.runner.get_performance()
+            info = {
+                'Team1-Ep.Reward':mean_return[ 0],
+                'Team2-Ep.Reward':mean_return[-1],
+                'Team1-Std.Reward':std_return[ 0],
+                'Team2-Std.Reward':std_return[-1],
+                'Loss.Critic':v_loss,
+                'Step':steps
+            }
+            # if valid:
+            #     info['Loss.Actor'] = total_pg_loss
+            #     info['Entropy'] = entropy
+            self.log_info(steps, info)
+            
+            if runtime_iterations % self.print_every == 0:
+                n_sec = time.time() - t_start
+                fps = int(runtime_iterations*self.runner.n_env*self.batch_size / n_sec)
+
+                print("[{:5d} / {:5d}]".format(steps, total_steps))
+                print("----------------------------------")
+                print("Elapsed time = {:.2f} sec".format(n_sec))
+                print("FPS          = {:d}".format(fps))
+                #print("actor loss   = {:.6f}".format(total_pg_loss))
+                print("critic loss  = {:.6f}".format(v_loss))
+                #print("entropy      = {:.6f}".format(entropy))
+                print("Team1 mean return  = {:.6f}".format(mean_return[ 0]))
+                print("Team2 mean return  = {:.6f}".format(mean_return[-1]))
+                print("Team1 std return  = {:.6f}".format(std_return[ 0]))
+                print("Team2 std return  = {:.6f}".format(std_return[-1]))
+                print("mean length  = {:.2f}".format(mean_len))
+                print("total episode= {:d}".format(total_episodes))
+                print("iterations   = {:d}".format(runtime_iterations))
+                print()
+
+        self.runner.close()
+        self.save_model()
+        torch.save(self.infos, './log/'+self.config['logdir'])
+        print("----Training End----")
+
+    def update_critic(self, mb_observations, mb_actions, mb_returns, agent_idx):
+        mb_observations = torch.from_numpy(mb_observations).to(self.device)
+        mb_actions      = torch.from_numpy(mb_actions).to(self.device)
+        mb_returns      = torch.from_numpy(mb_returns[agent_idx]).to(self.device)
+
+        values = self.critics[agent_idx](mb_observations, mb_actions) # (batch_size, 1)
+
+        #Critic Loss
+        v_loss = self.v_loss(values, mb_returns)
+
+        #Train critic
+        self.critic_optim[agent_idx].zero_grad()
+        v_loss.backward()
+        self.critic_optim[agent_idx].step()
+        
+        return v_loss.item()
+    
+    def make_payoff_matrix(self):
+        shape = [2 for _ in range(self.n_agents)]
+        shape.append(self.n_agents)
+        payoff_matrix = np.zeros(shape=shape)
+        with torch.no_grad():
+            all_actions = list(product([0, 1], repeat=self.n_agents))
+            for joint_action in all_actions:
+                obs = torch.as_tensor([0]).float().to(self.device)
+                actions = torch.as_tensor(joint_action).float().to(self.device)
+                payoffs = [self.critics[i](obs, actions).cpu().numpy() for i in range(self.n_agents)]
+
+                payoff_matrix[joint_action] = np.array(round(payoffs, 1))
+
+        return payoff_matrix

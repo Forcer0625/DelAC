@@ -398,3 +398,102 @@ class CEQRunner(NashQRunner):
             actions.append(i_action)
         actions.reverse()
         return actions
+    
+class CentralisedOnPolicyRunnerV2(CentralisedOnPolicyRunner):
+    def augmented_batch(self, observations, actions, values, rewards, truncations, dones, batch_count):
+        """
+            observatons, actions, values, rewards: (n_agent, n_envs)
+            truncations, dones: (n_envs)
+            batch_count: int
+        """
+        for p in self.permutation:
+            self.mb_observations[:, batch_count, :, :]  = observations.copy()
+            self.mb_actions[:, batch_count, :] = actions[p].copy()
+            self.mb_values[:, batch_count, :] = values[p].copy()
+            self.mb_rewards[:, batch_count, :] = rewards[p].copy()
+            self.truncations[batch_count, :] = truncations.copy()
+            self.dones[batch_count, :] = dones.copy()
+            batch_count += 1
+
+        return batch_count
+
+    def run(self, actors:list[Actor], critics:list[CentralisedCritic]):
+        self.permutation = self.team_permutation()
+        self.device = critics[0].device
+        episodes = 0
+        batch_count = 0
+        #1. Run n steps
+        #-------------------------------------
+        while batch_count < self.batch_size:
+            for i in range(self.n_agents):
+                observations = torch.from_numpy(self.observations[i]).float().to(self.device)
+                action, a_logs = actors[i](observations)
+                action = action.cpu().numpy()
+                self.actions[i] = action
+            
+            actions = torch.from_numpy(self.actions).float().to(self.device)
+            actions = actions.transpose(1 ,0)
+            self.values = np.zeros((self.n_agents, self.n_env), dtype=int)
+            for i in range(self.n_agents):
+                values = critics[i](observations, actions)
+                values = np.transpose(values.cpu().numpy())
+                self.values[i] = values
+
+            aug_observations = self.observations.copy()
+            self.observations, rewards, self.dones, self.truncations, _ = self.env.step(np.transpose(self.actions))
+            self.observations = np.transpose(self.observations, (1,0,2))
+            rewards = np.transpose(rewards, (1,0))
+           
+            last_done = np.logical_or(self.dones, self.truncations)
+            episodes += int(last_done.sum())
+
+            batch_count = self.augmented_batch(aug_observations, self.actions, self.values, rewards, self.truncations, self.dones, batch_count)
+
+        last_values = np.zeros((self.n_agents, self.n_env), dtype=np.float32)
+        mb_returns = np.zeros((self.n_agents, self.batch_size, self.n_env), dtype=np.float32)
+
+        for i in range(self.n_agents):
+            values = critics[i](torch.from_numpy(self.observations[0]).float().to(self.device),
+                            torch.from_numpy(self.actions).float().to(self.device).transpose(1, 0)).cpu().numpy()
+            last_values[i] = np.transpose(values)
+            mb_returns[i] = self.compute_gae(self.mb_rewards[i], self.mb_values[i], self.mb_dones, last_values[i], last_done)
+
+        self.record()
+
+        return self.mb_observations.reshape(self.n_agents, self.batch_size*self.n_env, self.input_dim), \
+                self.mb_actions.reshape(self.n_agents, self.batch_size*self.n_env), \
+                self.mb_values.reshape(self.n_agents, -1), \
+                mb_returns.reshape(self.n_agents, -1),\
+                episodes
+    
+    def team_permutation(self):
+        """
+        回傳所有permutation的idx的list
+        permutation是分為兩個team的, 系統總共有self.n_agents, team 1隊員的idx為0 ~ self.n_agent//2-1; 
+        team 2隊員的idx為self.n_agent//2 ~ self.n_agent-1
+        Example: 假設self.n_agents為4
+        回傳:
+        [
+         [0,1,2,3],
+         [1,0,2,3],
+         [0,1,3,2],
+         [1,0,3,2],
+        ]
+        """
+        
+        n_team1 = self.n_agents // 2
+        
+        team1_indices = list(range(n_team1))
+        team2_indices = list(range(n_team1, self.n_agents))
+        
+        import itertools
+        
+        permutations = []
+        
+        # 生成team1內部所有可能的排列
+        for p1 in itertools.permutations(team1_indices):
+            # 生成team2內部所有可能的排列
+            for p2 in itertools.permutations(team2_indices):
+                permutations.append(list(p1) + list(p2))
+                
+        return permutations
