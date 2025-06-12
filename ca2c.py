@@ -336,7 +336,7 @@ class CFAC2(CFAC):
         
         while steps < total_steps:
             with torch.no_grad():
-                mb_obs, mb_actions, mb_values, mb_returns, episodes = self.runner.run(self.actors, self.critic)
+                mb_obs, mb_actions, mb_values, mb_returns, episodes = self.runner.run(self.actors, self.critics)
 
             steps +=  self.batch_size
             total_episodes += episodes
