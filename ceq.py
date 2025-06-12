@@ -33,6 +33,7 @@ class CESolver(DynamicSolver):
             self.n_actions = self.env.n_actions[0]
         self.dynamic = config['nash-dynamic']
         self.device = config['device']
+        self.parameter_sharing = config['use-parameter-sharing']
         self.total_gambit_time = 0.0  # 累積總時間的變數
         if not self.dynamic:
             """stationary: solve all state nash and store in a static table"""
