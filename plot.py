@@ -6,6 +6,36 @@ import torch
 from scipy.signal import savgol_filter
 from collections import deque
 
+def plot_legends():
+    import matplotlib.pyplot as plt
+    import matplotlib.patches as mpatches
+
+    palette = {
+        'CFAC': '#1f77b4',
+        'IA2C': '#ff7f0e',
+        'IPPO': '#2ca02c',
+        'CA2C': '#d62728',
+        'MAPPO': '#9467bd',
+        'IQL': '#8c564b',
+        'NashQ': '#e377c2',
+        'CEQ': '#7f7f7f',
+        'FFQ(FOE)': '#bcbd22',
+        'FFQ(FRIEND)': '#17becf',
+        'NWQMIX': '#aec7e8'
+    }
+
+    # 建立 legend 元素
+    handles = [mpatches.Patch(color=color, label=algo) for algo, color in palette.items()]
+
+    # 建立空白圖
+    fig, ax = plt.subplots(figsize=(8, 2))  # 調整寬高以符合圖例需要
+    ax.axis("off")  # 不顯示軸線
+
+    # 顯示 legend
+    legend = ax.legend(handles=handles, loc='center', ncol=4, frameon=False)  # ncol 控制每列幾個
+    plt.tight_layout()
+    plt.show()
+
 def smooth_tensorboard(data, alpha=0.6):
     """ 
     TensorBoard-style exponential moving average smoothing.
