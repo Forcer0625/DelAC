@@ -411,8 +411,8 @@ class CentralisedOnPolicyRunnerV2(CentralisedOnPolicyRunner):
             self.mb_actions[:, batch_count, :] = actions[p].copy()
             self.mb_values[:, batch_count, :] = values[p].copy()
             self.mb_rewards[:, batch_count, :] = rewards[p].copy()
-            self.truncations[batch_count, :] = truncations.copy()
-            self.dones[batch_count, :] = dones.copy()
+            self.mb_truncations[batch_count, :] = truncations.copy()
+            self.mb_dones[batch_count, :] = dones.copy()
             batch_count += 1
 
         return batch_count
