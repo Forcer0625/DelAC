@@ -405,7 +405,7 @@ class CFAC2(CFAC):
     def update_critic(self, mb_observations, mb_actions, mb_returns, agent_idx):
         mb_observations = torch.from_numpy(mb_observations).to(self.device)
         mb_actions      = torch.from_numpy(mb_actions).to(self.device)
-        mb_returns      = torch.from_numpy(mb_returns[:, agent_idx]).to(self.device)
+        mb_returns      = torch.from_numpy(mb_returns[:, agent_idx]).to(self.device).unsqueeze(1)
 
         values = self.critics[agent_idx](mb_observations, mb_actions) # (batch_size, 1)
 
