@@ -349,19 +349,19 @@ class CFAC2(CFAC):
                 v_loss += self.update_critic(mb_obs[0], mb_actions, mb_returns, i)
             v_loss = v_loss / self.n_agents
 
-            # total_pg_loss = entropy = 0.0
-            # payoff_matrix = self.make_payoff_matrix()
-            # game = TwoTeamSymmetricGame(self.n_agents)
-            # game.set_payoff_matrix(payoff_matrix)
-            # strategy, _, _ = feasibility_run(game, self.n_agents)
-            # valid = True
-            # if np.any(strategy < 0.0):
-            #     valid = False
-            # else:
-            #     strategy = strategy.reshape((self.n_agents, self.action_dim))
-            #     for i in range(self.n_agents):
-            #         pg_loss, entropy = self.update_actor(mb_obs[i], strategy[i], i)
-            #         total_pg_loss += pg_loss
+            total_pg_loss = entropy = 0.0
+            payoff_matrix = self.make_payoff_matrix()
+            game = TwoTeamSymmetricGame(self.n_agents)
+            game.set_payoff_matrix(payoff_matrix)
+            strategy, _, _ = feasibility_run(game, self.n_agents)
+            valid = True
+            if np.any(strategy < 0.0):
+                valid = False
+            else:
+                strategy = strategy.reshape((self.n_agents, self.action_dim))
+                for i in range(self.n_agents):
+                    pg_loss, entropy = self.update_actor(mb_obs[i], strategy[i], i)
+                    total_pg_loss += pg_loss
 
             mean_return, std_return, mean_len = self.runner.get_performance()
             info = {
@@ -372,9 +372,9 @@ class CFAC2(CFAC):
                 'Loss.Critic':v_loss,
                 'Step':steps
             }
-            # if valid:
-            #     info['Loss.Actor'] = total_pg_loss
-            #     info['Entropy'] = entropy
+            if valid:
+                info['Loss.Actor'] = total_pg_loss
+                info['Entropy'] = entropy
             self.log_info(steps, info)
             
             if runtime_iterations % self.print_every == 0:
@@ -385,9 +385,9 @@ class CFAC2(CFAC):
                 print("----------------------------------")
                 print("Elapsed time = {:.2f} sec".format(n_sec))
                 print("FPS          = {:d}".format(fps))
-                #print("actor loss   = {:.6f}".format(total_pg_loss))
+                print("actor loss   = {:.6f}".format(total_pg_loss))
                 print("critic loss  = {:.6f}".format(v_loss))
-                #print("entropy      = {:.6f}".format(entropy))
+                print("entropy      = {:.6f}".format(entropy))
                 print("Team1 mean return  = {:.6f}".format(mean_return[ 0]))
                 print("Team2 mean return  = {:.6f}".format(mean_return[-1]))
                 print("Team1 std return  = {:.6f}".format(std_return[ 0]))
