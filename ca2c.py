@@ -405,7 +405,7 @@ class CFAC2(CFAC):
     def update_critic(self, mb_observations, mb_actions, mb_returns, agent_idx):
         mb_observations = torch.from_numpy(mb_observations).to(self.device)
         mb_actions      = torch.from_numpy(mb_actions).to(self.device)
-        mb_returns      = torch.from_numpy(mb_returns[agent_idx]).to(self.device)
+        mb_returns      = torch.from_numpy(mb_returns[:, agent_idx]).to(self.device)
 
         values = self.critics[agent_idx](mb_observations, mb_actions) # (batch_size, 1)
 
@@ -430,6 +430,6 @@ class CFAC2(CFAC):
                 actions = torch.as_tensor(joint_action).float().to(self.device)
                 payoffs = [self.critics[i](obs, actions).cpu().numpy() for i in range(self.n_agents)]
 
-                payoff_matrix[joint_action] = np.array(round(payoffs, 1))
+                payoff_matrix[joint_action] = np.round(np.array(payoffs), 1)
 
         return payoff_matrix
