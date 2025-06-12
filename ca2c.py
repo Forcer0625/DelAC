@@ -67,7 +67,7 @@ class CA2C(IA2C):
                 total_pg_loss += pg_loss
             
             mb_actions = mb_actions.transpose()
-            mb_returns = mb_returns[self.n_agents//2-1:self.n_agents//2].transpose()
+            mb_returns = mb_returns[self.n_agents//2-1:self.n_agents//2+1].transpose()
             v_loss = self.update_critic(mb_obs[i], mb_actions, mb_returns)
 
             steps += self.batch_size
@@ -228,7 +228,7 @@ class CFAC(CA2C):
             runtime_iterations += 1
             
             mb_actions = mb_actions.transpose()
-            mb_returns = mb_returns[self.n_agents//2-1:self.n_agents//2].transpose()
+            mb_returns = mb_returns[self.n_agents//2-1:self.n_agents//2+1].transpose()
             v_loss = self.update_critic(mb_obs[0], mb_actions, mb_returns)
 
             total_pg_loss = entropy = 0.0
