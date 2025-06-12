@@ -430,6 +430,6 @@ class CFAC2(CFAC):
                 actions = torch.as_tensor(joint_action).float().to(self.device)
                 payoffs = [self.critics[i](obs, actions).cpu().numpy() for i in range(self.n_agents)]
 
-                payoff_matrix[joint_action] = np.round(np.array(payoffs), 1)
+                payoff_matrix[joint_action] = np.round(np.array(payoffs).squeeze(), 1)
 
         return payoff_matrix
