@@ -10,7 +10,7 @@ from ia2c import IA2C
 from torch.utils.tensorboard import SummaryWriter
 from itertools import product
 import csv
-from team_feasibility import feasibility_run
+from team_feasibility import feasibility_run, feasibility_run_
 from judger import NashEquilibriumJudger
 from iql import DynamicSolver
 from envs import TwoTeamSymmetricGame
@@ -321,11 +321,13 @@ class CFAC2(CFAC):
             #     self.actor_optim.append(team_1_optim if i < self.n_agents//2 else team_2_optim)
             pass
         else:
+            actor = Actor(input_dim=self.input_dim, action_dim=self.action_dim).to(self.device)
+            critic = CentralisedCritic(input_dim=self.input_dim, action_dim=self.n_agents, value_dim=1, device=self.device)
             for i in range(self.n_agents):
-                self.actors.append(Actor(input_dim=self.input_dim, action_dim=self.action_dim).to(self.device))
+                self.actors.append(deepcopy(actor))
                 self.actor_optim.append(torch.optim.Adam(self.actors[i].parameters(), lr=self.lr))
-                self.critics.append(CentralisedCritic(input_dim=self.input_dim, action_dim=self.n_agents, value_dim=1, device=self.device))
-                self.critic_optim.append(torch.optim.Adam(self.critics[i].parameters(), lr=self.lr*100.0) )
+                self.critics.append(deepcopy(critic))
+                self.critic_optim.append(torch.optim.Adam(self.critics[i].parameters(), lr=self.lr*3.0) )
 
     def learn(self, total_steps):
         self.save_config()
@@ -353,7 +355,7 @@ class CFAC2(CFAC):
             payoff_matrix = self.make_payoff_matrix()
             game = TwoTeamSymmetricGame(self.n_agents)
             game.set_payoff_matrix(payoff_matrix)
-            strategy, _, _ = feasibility_run(game, self.n_agents)
+            strategy, _, _ = feasibility_run_(game, self.n_agents)
             valid = True
             if np.any(strategy < 0.0):
                 valid = False

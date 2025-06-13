@@ -274,6 +274,173 @@ def feasibility_run(game:GeneralSumGame, n_players=4, tol=1e-8, init_val=None) -
     
     return strategys.round(4), result, info
 
+def feasibility_run_(game:GeneralSumGame, n_players=4, tol=1e-8, init_val=None) -> np.ndarray:  # 設置容忍值:
+    n_players = n_players
+    # 1. 邊界
+    bounds = Bounds(0.0, 1.0)
+    player_strategy_probs = []
+    # b = np.array([1.0])
+    # A = np.ones((1, 6))#np.array([[0.0, 1.0, 1.0, 1.0]]) # 0 <= g0+g1+g2 <= 1
+    # A[0, 0] = 0.0
+    # A[0, 1] = 0.0
+    # A[0, 2] = 0.0
+    # player_strategy_probs.append(LinearConstraint(A, 0.0, b))
+    # A = np.ones((1, 6))#np.array([[0.0, 1.0, 1.0, 1.0]]) # 0 <= h0+h1+h2 <= 1
+    # A[0, 3] = 0.0
+    # A[0, 4] = 0.0
+    # A[0, 5] = 0.0
+    # player_strategy_probs.append(LinearConstraint(A, 0.0, b))
+
+    for i in range(2):
+        A = np.zeros((1, 2))
+        A[0, i] = 1.0
+        player_strategy_probs.append(LinearConstraint(A, 0.0, 1.0))
+
+    # 2. 定義變數相關的非線性約束
+    def best_reponse(x):
+        """
+        v1(k)+r_{1,k} = U*1, k=0,1
+        v2(l)+r_{2,l} = U*2, l=0,1,...,n-1
+        """
+        all_strategy = get_all_strategy(x)
+        #all_payoffs = calculate_expected_payoff(None, game, all_strategy)
+        u1_star = calculate_expected_payoff(0 , game, all_strategy)
+        u2_star = calculate_expected_payoff(-1, game, all_strategy)
+        # Team 1
+        v1_0 = np.concatenate((np.array([1.0, 0.0], dtype=np.float64), all_strategy[2:]))
+        v1_1 = np.concatenate((np.array([0.0, 1.0], dtype=np.float64), all_strategy[2:]))
+
+        v1_0 = calculate_expected_payoff(0, game, v1_0)
+        v1_1 = calculate_expected_payoff(0, game, v1_1)
+
+        
+        # Team 2
+        v2_0 = np.concatenate((all_strategy[:6], np.array([1.0, 0.0], dtype=np.float64)))
+        v2_1 = np.concatenate((all_strategy[:6], np.array([0.0, 1.0], dtype=np.float64)))
+
+        v2_0 = calculate_expected_payoff(-1, game, v2_0)
+        v2_1 = calculate_expected_payoff(-1, game, v2_1)
+
+        r = np.array([u1_star, u1_star, u2_star, u2_star]) - \
+            np.array([v1_0, v1_1, v2_0, v2_1])
+
+        indifference = r *  np.concatenate((all_strategy[:2], all_strategy[6:]))
+
+        #all_strategy = all_strategy#.round(3)
+        #g0, g1, g2, g3 = all_strategy[2:]
+
+        return np.concatenate((r, indifference))#, np.array([g0*g3 - g2*g1])))
+    
+
+    # 非線性約束
+    n_r = 4  # r 的元素個數
+    n_indifference = 4  # indifference 的元素個數
+    lower_bounds = np.concatenate((np.zeros(n_r), np.zeros(n_indifference)))  # r 的下界為 0, indifference 的下界為 0
+    upper_bounds = np.concatenate((np.inf * np.ones(n_r), np.zeros(n_indifference)))  # r 的上界為 0, indifference 的上界為 0
+    best_reponse_constraint = NonlinearConstraint(best_reponse, lower_bounds, upper_bounds)  # v1(k)+r_{1,k} - U*1 = 0、r>=0 and x*r=0
+    #payoff_ge_0_constraint = NonlinearConstraint(payoff_ge_0, 0, np.inf)  # >= 0
+    #indifference_constraint = NonlinearConstraint(indifference, 0, 0)  # = 0
+
+    # 3. 定義線性約束
+    # A = np.array([[1, 1, 0]])  # x1 + x2 <= 1
+    # b = np.array([1])
+    # linear_constraint = LinearConstraint(A, -np.inf, b)
+
+    # 4.虛擬目標函數
+    def dummy_objective(x):
+        return 0  # 沒有實際目標函數
+    
+    
+    def basic_penlity(x):
+        sum = 0
+        strategys = get_all_strategy(x)
+        for p in strategys:
+            if p < 0.0 or p > 1.0:
+                sum += 1
+        return sum
+    
+    def best_response_penlity(x):
+        sum = 0
+        indf = best_reponse(x)
+        for i in range(n_r + n_indifference):
+            #if indf[i] < lower_bounds[i] or indf[i] > upper_bounds[i]:
+            if (not np.isclose(indf[i], lower_bounds[i], atol=1e-4)) or (not np.isclose(indf[i], upper_bounds[i], atol=1e-4)):
+                sum += 1
+        return sum
+
+    def penality(x):
+        return dummy_objective(x) + best_response_penlity(x) + basic_penlity(x) *10
+
+    # 5.設定變數初始值
+    if init_val is not None:
+        strategys = init_val # 有2個變數, 分別為[x0, y0], 表示symmetric strategy
+    else:
+        strategys = [0.5, 0.5]
+
+    # 6.求解
+    constraints=[
+                #indepent_prob_constraint,
+                best_reponse_constraint,
+                #payoff_ge_0_constraint,
+                #indifference_constraint,
+                ] + player_strategy_probs
+
+    result = minimize(
+        dummy_objective,
+        strategys,
+        bounds=bounds,  # 設置變數邊界
+        constraints=constraints,
+        method='trust-constr',
+        #method='COBYLA',
+        tol=tol,  # 設置容忍值
+        options={'factorization_method': 'SVDFactorization',# 'QRFactorization' 'SVDFactorization'
+                 'xtol': tol,  # 解的容忍值
+                 'barrier_tol': tol,  # 障礙函數的容忍值
+                 'maxiter': 3000 if init_val is None else 0,  # 最大迭代次數
+                }
+    )
+
+    # print("Constraint Status:", result.success)
+    strategys = get_all_strategy(result.x.round(3))#np.array([1.0, 0.0, 0.0, 0.0, 0.0, 1.0])#
+    basic_prob_cons = basic_penlity(result.x.round(2))
+    best_rep_cons = best_response_penlity(result.x.round(2))
+    # print("Basic Probability Constraint:", basic_prob_cons)
+    # print("Best Response Constraint:", best_rep_cons)
+
+    # Record 2-player approximate game constraint infomation
+    info = {}
+    all_strategy = get_all_strategy(result.x)#strategys.copy()#
+    #all_payoffs = calculate_expected_payoff(None, game, all_strategy)
+    #u1_star, u2_star = calculate_expected_payoff_binomial(None, game, all_strategy)#all_payoffs[0], all_payoffs[-1]
+    u1_star = calculate_expected_payoff(0 , game, all_strategy)
+    u2_star = calculate_expected_payoff(-1, game, all_strategy)
+    # Player 1
+    v1_0 = np.concatenate((np.array([1.0, 0.0], dtype=np.float64), all_strategy[2:]))
+    v1_1 = np.concatenate((np.array([0.0, 1.0], dtype=np.float64), all_strategy[2:]))
+    
+    v1_0 = calculate_expected_payoff(0, game, v1_0)
+    v1_1 = calculate_expected_payoff(0, game, v1_1)
+    
+    # Virtual Player
+    v2_0 = np.concatenate((all_strategy[:6], np.array([1.0, 0.0], dtype=np.float64)))
+    v2_1 = np.concatenate((all_strategy[:6], np.array([0.0, 1.0], dtype=np.float64)))
+    
+    v2_0 = calculate_expected_payoff(-1, game, v2_0)
+    v2_1 = calculate_expected_payoff(-1, game, v2_1)
+
+    r = np.array([u1_star, u1_star, u2_star, u2_star]) - \
+        np.array([v1_0, v1_1, v2_0, v2_1])
+
+    indifference = r * np.concatenate((all_strategy[:2], all_strategy[6:]))
+
+    info['u'] = np.array([u1_star, u1_star, u2_star, u2_star])
+    info['v'] = np.array([v1_0, v1_1, v2_0, v2_1])
+    info['r'] = r
+    info['indifference'] = indifference
+    info['constraint'] = basic_prob_cons + best_rep_cons
+    
+    return strategys.round(4), result, info
+
 if __name__ == "__main__":
     # 產生Game
     i = 0
