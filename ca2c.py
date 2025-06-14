@@ -14,6 +14,7 @@ from team_feasibility import feasibility_run, feasibility_run_
 from judger import NashEquilibriumJudger
 from iql import DynamicSolver
 from envs import TwoTeamSymmetricGame
+from itertools import permutations
 
 class CA2C(IA2C):
     def get_policy(self):
@@ -357,8 +358,12 @@ class CFAC2(CFAC):
             game.set_payoff_matrix(payoff_matrix)
             strategy, _, _ = feasibility_run_(game, self.n_agents)
             valid = True
-            if np.any(strategy < 0.0):
-                valid = False
+            if not self.check_team_symmetric(payoff_matrix):
+                self.config['Stop Step'] = steps
+                self.save_game(TwoTeamSymmetricGame)
+                self.save_config()
+                self.env.close()
+                exit()
             else:
                 strategy = strategy.reshape((self.n_agents, self.action_dim))
                 for i in range(self.n_agents):
@@ -435,3 +440,48 @@ class CFAC2(CFAC):
                 payoff_matrix[joint_action] = np.round(np.array(payoffs).squeeze(), 1)
 
         return payoff_matrix
+    
+    def check_team_symmetric(self, payoff_matrix):
+        """
+        檢查一個 4-player 的遊戲是否具有 team symmetric 性質。
+        前兩位玩家屬於 team 1, 後兩位屬於 team 2。
+        
+        Args:
+            payoff_matrix (np.ndarray): shape (2, 2, 2, 2, 4)
+            
+        Returns:
+            bool: 是否為 team symmetric game
+        """
+        # 1. check common-payoff within team
+        for idx in np.ndindex(2, 2, 2, 2):
+            payoffs = payoff_matrix[idx]
+            if not (np.isclose(payoffs[0], payoffs[1]) and np.isclose(payoffs[2], payoffs[3])):
+                return False
+
+        # 2. check permutation-invariance within each team
+        players = list(range(4))
+        team1 = [0, 1]
+        team2 = [2, 3]
+        
+        # 所有 team1 permutation
+        for perm in permutations(team1):
+            for idx in np.ndindex(2, 2, 2, 2):
+                actions = list(idx)
+                permuted_actions = actions.copy()
+                # 將 team1 的 player index permute
+                permuted_actions[perm[0]], permuted_actions[perm[1]] = actions[team1[0]], actions[team1[1]]
+                if not np.allclose(payoff_matrix[tuple(permuted_actions)][perm[0]], 
+                                payoff_matrix[tuple(actions)][team1[0]]):
+                    return False
+
+        # 所有 team2 permutation
+        for perm in permutations(team2):
+            for idx in np.ndindex(2, 2, 2, 2):
+                actions = list(idx)
+                permuted_actions = actions.copy()
+                permuted_actions[perm[0]], permuted_actions[perm[1]] = actions[team2[0]], actions[team2[1]]
+                if not np.allclose(payoff_matrix[tuple(permuted_actions)][perm[0]], 
+                                payoff_matrix[tuple(actions)][team2[0]]):
+                    return False
+
+        return True
